@@ -1,36 +1,42 @@
 import { useState } from 'react';
-import { searchImages, type UnsplashSearchResponseItemDto } from './services/unsplash';
+import { searchImages, registerDownload, type UnsplashSearchResponseItemDto } from './services/unsplash';
 
+
+// Preset keywords for quick search
 const PRESETS = [
   'animal', 'minimal', 'abstract', 'nature', 'architecture', 'plant', 'art', 'portrait',
   'business', 'space', 'colorful', 'technology', 'food', 'texture', 'interior', 'wallpaper'
 ];
 
 export function App() {
-  const [modalOpen, setModalOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState<'presets' | 'search'>('search');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState<UnsplashSearchResponseItemDto[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  // React state hooks
+  const [modalOpen, setModalOpen] = useState(false); // Controls modal visibility
+  const [activeTab, setActiveTab] = useState<'presets' | 'search'>('search'); // Active tab
+  const [searchTerm, setSearchTerm] = useState(''); // Search input value
+  const [results, setResults] = useState<UnsplashSearchResponseItemDto[]>([]); // Image results
+  const [loading, setLoading] = useState(false); // Loading state for API
+  const [error, setError] = useState<string | null>(null); // Error message if any
+  const [dropdownOpen, setDropdownOpen] = useState(false); // Controls "More" dropdown
 
+  // Function to perform search using Unsplash API
   const onSearch = async (term?: string) => {
-    const query = term ?? searchTerm.trim();
-    if (!query) return;
+    const query = term ?? searchTerm.trim(); // Use term from argument or input field
+    if (!query) return; // Do nothing if empty query
     setLoading(true);
     setError(null);
     try {
-      const data = await searchImages(query);
-      setResults(data.Data);
+      const data = await searchImages(query); // Call Unsplash API
+      setResults(data.Data); // Update results
     } catch (e) {
-      setError((e as Error).message);
+      setError((e as Error).message); // Show error message
     } finally {
       setLoading(false);
     }
   };
 
+  // Renders tab content dynamically
   const renderTabContent = () => {
+    // If "Presets" tab is active
     if (activeTab === 'presets') {
       return (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem' }}>
@@ -38,9 +44,9 @@ export function App() {
             <button className='preset-btn'
               key={preset}
               onClick={() => {
-                setSearchTerm(preset);
-                onSearch(preset);
-                setActiveTab('search');
+                setSearchTerm(preset); // Set input value to preset
+                onSearch(preset); // Trigger search immediately
+                setActiveTab('search'); // Switch back to search tab
               }}
             >
               {preset}
@@ -50,16 +56,18 @@ export function App() {
       );
     }
 
+    // If "Search" tab is active
     return (
       <>
+        {/* Search input + button */}
         <div style={{ display: 'flex', marginBottom: '1rem' }}>
           <input
             type="text"
             placeholder="Search images..."
             value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && onSearch()}
-            style={{ flex: 1, padding: '0.8rem', borderRadius: '0.5rem', border: '1px solid #ccc' }}
+            onChange={e => setSearchTerm(e.target.value)} // Update state
+            onKeyDown={e => e.key === 'Enter' && onSearch()} // Search on Enter key
+            style={{ flex: 1, padding: '0.8rem', borderRadius: '0.5rem', border: '1px solid #ccc', fontWeight: 'bold' }}
           />
           <button className='search-btn'
             onClick={() => onSearch()}
@@ -69,19 +77,36 @@ export function App() {
           </button>
         </div>
 
+        {/* Show error if exists */}
         {error && <p style={{ color: 'red' }}>{error}</p>}
+
+        {/* If no results yet */}
         {results.length === 0 && !loading && <p>No results yet.</p>}
 
+        {/* Render image results */}
         <ul style={{ listStyle: 'none', padding: 0 }}>
           {results.map(img => (
             <li key={img.DownloadLocation} style={{ marginBottom: 20 }}>
-              <a href={img.AuthorAttributionUrl} target="_blank" rel="noopener noreferrer">
+              <a
+                href={img.AuthorAttributionUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={async () => {
+                  try {
+                    await registerDownload(img.DownloadLocation); // Register the download with Unsplash
+                    console.log('Download registered successfully');
+                  } catch (error) {
+                    console.error('Failed to register download', error);
+                  }
+                }}
+              >
                 <img
                   src={img.ThumbnailImageUrl}
                   alt={`Photo by ${img.AuthorAttributionName}`}
                   style={{ borderRadius: 8, maxWidth: '100%' }}
                 />
               </a>
+
               <p style={{ fontSize: 12, marginTop: 4 }}>
                 Photo by{' '}
                 <a href={img.AuthorAttributionUrl} target="_blank" rel="noopener noreferrer">
@@ -97,6 +122,7 @@ export function App() {
 
   return (
     <>
+      {/* Main button to open modal */}
       <button
         onClick={() => setModalOpen(true)}
         style={{
@@ -107,11 +133,13 @@ export function App() {
           borderRadius: '0.5rem',
           cursor: 'pointer',
           margin: '2rem',
+          fontWeight: 'bold'
         }}
       >
         Open Unsplash Plugin
       </button>
 
+      {/* Modal overlay */}
       {modalOpen && (
         <div
           style={{
@@ -125,6 +153,7 @@ export function App() {
             zIndex: 1000,
           }}
         >
+          {/* Modal content */}
           <div
             style={{
               background: '#fff',
@@ -138,6 +167,7 @@ export function App() {
               overflowY: 'auto',
             }}
           >
+            {/* Close button */}
             <button
               onClick={() => setModalOpen(false)}
               style={{
@@ -152,90 +182,97 @@ export function App() {
             >
               &times;
             </button>
-                    <div
+
+            {/* Modal header: Tabs + More dropdown */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '1rem',
+                marginBottom: '1rem',
+                borderBottom: '1px solid #ccc',
+                paddingBottom: '20px'
+              }}
+            >
+              {/* Tabs (Presets / Search) */}
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  onClick={() => setActiveTab('presets')}
+                  style={{
+                    padding: '0.7rem',
+                    background: activeTab === 'presets' ? '#222' : '#eee',
+                    color: activeTab === 'presets' ? '#fff' : '#000',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Presets
+                </button>
+                <button
+                  onClick={() => setActiveTab('search')}
+                  style={{
+                    padding: '0.7rem',
+                    background: activeTab === 'search' ? '#222' : '#eee',
+                    color: activeTab === 'search' ? '#fff' : '#000',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Search
+                </button>
+              </div>
+
+              {/* Dropdown Menu */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setDropdownOpen(prev => !prev)}
+                  style={{
+                    padding: '0.7rem',
+                    background: '#eee',
+                    border: 'none',
+                    borderRadius: '0.5rem',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  More ▾
+                </button>
+
+                {/* Dropdown options */}
+                {dropdownOpen && (
+                  <div
                     style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        marginBottom: '1rem',
-                        borderBottom: '1px solid #ccc',
-                        paddingBottom: '20px'
+                      position: 'absolute',
+                      top: '110%',
+                      right: 0,
+                      borderRadius: '0.5rem',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                      zIndex: 10,
+                      minWidth: '160px',
                     }}
+                  >
+                    <button onClick={() => alert('About clicked')} style={dropdownStyle}>
+                      About
+                    </button>
+                    <button
+                      onClick={() =>
+                        window.open('https://unsplash.com/oauth/authorize', '_blank', 'noopener,noreferrer')
+                      }
+                      style={dropdownStyle}
                     >
-                    {/* Left side: Presets & Search */}
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button
-                        onClick={() => setActiveTab('presets')}
-                        style={{
-                            padding: '0.7rem',
-                            background: activeTab === 'presets' ? '#222' : '#eee',
-                            color: activeTab === 'presets' ? '#fff' : '#000',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            cursor: 'pointer',
-                        }}
-                        >
-                        Presets
-                        </button>
-                        <button
-                        onClick={() => setActiveTab('search')}
-                        style={{
-                            padding: '0.7rem',
-                            background: activeTab === 'search' ? '#222' : '#eee',
-                            color: activeTab === 'search' ? '#fff' : '#000',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            cursor: 'pointer',
-                        }}
-                        >
-                        Search
-                        </button>
-                    </div>
+                      Login
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                    {/* Right side: More dropdown */}
-                    <div style={{ position: 'relative' }}>
-                        <button
-                        onClick={() => setDropdownOpen(prev => !prev)}
-                        style={{
-                            padding: '0.7rem',
-                            background: '#eee',
-                            border: 'none',
-                            borderRadius: '0.5rem',
-                            cursor: 'pointer',
-                        }}
-                        >
-                        More ▾
-                        </button>
-
-                        {dropdownOpen && (
-                        <div
-                            style={{
-                            position: 'absolute',
-                            top: '110%',
-                            right: 0,
-                            borderRadius: '0.5rem',
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                            zIndex: 10,
-                            minWidth: '160px',
-                            }}
-                        >
-                            <button onClick={() => alert('About clicked')} style={dropdownStyle}>
-                            About
-                            </button>
-                            <button
-                            onClick={() =>
-                                window.open('https://unsplash.com/oauth/authorize', '_blank', 'noopener,noreferrer')
-                            }
-                            style={dropdownStyle}
-                            >
-                            Login
-                            </button>
-                        </div>
-                        )}
-                    </div>
-                    </div>
-
+            {/* Render either Presets or Search */}
             <div>{renderTabContent()}</div>
           </div>
         </div>
@@ -244,6 +281,7 @@ export function App() {
   );
 }
 
+// Dropdown button styles
 const dropdownStyle: React.CSSProperties = {
   padding: '0.75rem',
   width: '100%',
@@ -251,7 +289,8 @@ const dropdownStyle: React.CSSProperties = {
   border: 'none',
   textAlign: 'left',
   cursor: 'pointer',
-  color: '#fff'
+  color: '#fff',
+  fontWeight: 'bold'
 };
 
 export default App;
