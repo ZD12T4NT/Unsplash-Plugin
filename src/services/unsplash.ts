@@ -44,38 +44,48 @@ async function getJwtToken(): Promise<string> {
 
 
 // -------------------------
-// Mock Images (for local testing)
+// Mock Images (for local testing) Remove when ready
 // -------------------------
 const mockImages: UnsplashSearchResponseItemDto[] = [
   {
     DownloadLocation: "mock-abc123",
     ThumbnailImageUrl:
       "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=400&h=300&fit=crop",
-    AuthorAttributionName: "John Doe",
+    AuthorAttributionName: "A C",
     AuthorAttributionUrl: "https://unsplash.com/@3tnik",
   },
   {
-    DownloadLocation: "mock-def456",
+    DownloadLocation: "mock-1",
     ThumbnailImageUrl:
-      "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=300&fit=crop",
-    AuthorAttributionName: "Jane Smith",
-    AuthorAttributionUrl: "https://unsplash.com/@jorainternet",
+      "https://images.unsplash.com/photo-1751161749900-990bf22bb2ad?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    AuthorAttributionName: "George",
+    AuthorAttributionUrl: "https://unsplash.com/@dagerotip",
   },
   {
-    DownloadLocation: "mock-ghi789",
+    DownloadLocation: "mock-2",
     ThumbnailImageUrl:
-      "https://images.unsplash.com/photo-1499084732479-de2c02d45fc4?w=400&h=300&fit=crop",
-    AuthorAttributionName: "Alice Johnson",
-    AuthorAttributionUrl: "https://unsplash.com/@alexmachado",
+      "https://images.unsplash.com/photo-1750836054429-4cfdf40b32f1?q=80&w=394&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    AuthorAttributionName: "Chris",
+    AuthorAttributionUrl: "https://unsplash.com/@chrisvomradio",
   },
   {
-    DownloadLocation: "mock-jkl012",
+    DownloadLocation: "mock-3",
     ThumbnailImageUrl:
-      "https://images.unsplash.com/photo-1517817748495-63c1028a1de5?w=400&h=300&fit=crop",
-    AuthorAttributionName: "Mark Wilson",
-    AuthorAttributionUrl: "https://unsplash.com/@markwilson",
+      "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=352&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    AuthorAttributionName: "Johannes",
+    AuthorAttributionUrl: "https://unsplash.com/@thejoltjoker",
+  },
+  {
+    DownloadLocation: "mock-4",
+    ThumbnailImageUrl:
+      "https://images.unsplash.com/photo-1530908295418-a12e326966ba?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
+    AuthorAttributionName: "Kenrick",
+    AuthorAttributionUrl: "https://unsplash.com/@kenrickmills",
   },
 ];
+
+
+
 
 // -------------------------
 // Config: toggle for gateway mode
@@ -84,7 +94,6 @@ const mockImages: UnsplashSearchResponseItemDto[] = [
 
 // Gateway Usage
 const USE_GATEWAY = true;
-
 
 // -------------------------
 // Search Images (robust + mock fallback)
@@ -95,11 +104,13 @@ export async function searchImages(
   delayMs = 1500
 ): Promise<UnsplashSearchResponseSetDto> {
   if (!USE_GATEWAY) {
-    console.log("⚠️ Using mock Unsplash images (gateway disabled)");
+    console.log("Using mock Unsplash images (gateway disabled)");
     return { data: mockImages };
   }
 
   const JWT_TOKEN = await getJwtToken();
+  console.log("JWT Token:", JWT_TOKEN);
+
   const res = await fetch(`${API_BASE}/search-unsplash`, {
     method: "POST",
     headers: {
@@ -110,19 +121,32 @@ export async function searchImages(
     body: JSON.stringify({ prompt: query }),
   });
 
+  console.log(`Request sent to gateway with prompt: "${query}"`);
+  console.log("Response status:", res.status);
+
   if (res.status === 202) {
-    if (retries <= 0) return { data: mockImages };
+    console.log("Gateway returned 202 (processing), retrying...");
+    if (retries <= 0) {
+      console.warn("Max retries reached, returning mock images");
+      return { data: mockImages };
+    }
     await new Promise((resolve) => setTimeout(resolve, delayMs));
     return searchImages(query, retries - 1, delayMs);
   }
 
   if (!res.ok) {
-    console.warn("Gateway fetch failed, using mock data");
+    console.warn("Gateway fetch failed, returning mock images");
+    const text = await res.text();
+    console.log("Raw response:", text);
     return { data: mockImages };
   }
 
   const json = await res.json();
+  console.log("Raw JSON from gateway:", json);
+
   const items = json.data ?? json.Data ?? [];
+  console.log("Parsed items array:", items);
+
   const mappedItems = items.map((item: any) => ({
     DownloadLocation: item.DownloadLocation,
     ThumbnailImageUrl: item.ThumbnailImageUrl,
@@ -130,15 +154,18 @@ export async function searchImages(
     AuthorAttributionUrl: item.AuthorAttributionUrl,
   }));
 
+  console.log("Mapped items ready for UI:", mappedItems);
+
   return { data: mappedItems.length ? mappedItems : mockImages };
 }
+
 
 // -------------------------
 // Download/Register Image
 // -------------------------
 export async function registerDownload(url: string) {
   if (!USE_GATEWAY) {
-    console.log("💡 Mock register download:", url);
+    console.log("Mock register download:", url);
     return { success: true };
   }
 
