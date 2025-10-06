@@ -12,20 +12,9 @@ button {
   transition: all 0.3s linear;
 }
 
-.preset-btn {
-  padding: 0.7rem;
-  border-radius: 0.5rem;
-  border: 1px solid #ccc;
-  background: #fff;
-  cursor: pointer;
-  text-transform: capitalize;
-  font-weight: bold;
-}
-
 .preset-btn:hover {
-  background: #333;
-  border: 1px solid #333;
-  color: #fff;
+  background: #efeff0 !important;
+  border: 1px solid #efeff0 !important;
 }
 
 .search-btn {
