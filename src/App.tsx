@@ -45,33 +45,49 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
           }}
         />
 
-        {/* Centered Download button */}
-        <button
-          onClick={async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            await registerDownload(img.DownloadLocation);
-            window.open(img.ThumbnailImageUrl, "_blank");
-          }}
-          style={{
-            position: "absolute",
-            top: "50%",
-            left: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "#000",
-            color: "#fff",
-            border: "none",
-           padding: "0.8rem 1.2rem",
+      <button
+        onClick={async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
 
-            borderRadius: "0.3rem",
-            opacity: hover ? 1 : 0,
-            transition: "opacity 0.3s ease",
-            cursor: "pointer",
-            fontSize: "12px",
-          }}
-        >
-          Use this image
-        </button>
+          // Register the download with your gateway
+          await registerDownload(img.DownloadLocation);
+
+          // Update the CMS hidden input
+          const hiddenInput = document.querySelector<HTMLInputElement>('#rk8jxokiure');
+          if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+
+          // Update the Alt text field
+          const altInput = document.querySelector<HTMLInputElement>('#RK8JxoKIURE=tag');
+          if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+
+          // Trigger input events so the CMS picks up the changes
+          hiddenInput?.dispatchEvent(new Event('input', { bubbles: true }));
+          altInput?.dispatchEvent(new Event('input', { bubbles: true }));
+
+          // Optional: open the image in a new tab
+          window.open(img.ThumbnailImageUrl, '_blank');
+        }}
+        style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "#000",
+          color: "#fff",
+          border: "none",
+          padding: "0.8rem 1.2rem",
+          borderRadius: "0.3rem",
+          opacity: hover ? 1 : 0,
+          transition: "opacity 0.3s ease",
+          cursor: "pointer",
+          fontSize: "12px",
+        }}
+      >
+        Use this image
+      </button>
+
+
       </div>
 
       <p style={{ fontSize: 12, marginTop: 4 }}>
