@@ -417,8 +417,6 @@ const renderResults = () => (
                   name="Relevance"
                   value={relevance}
                   onChange={(e) => {
-                    console.log("Select name:", e.target.name); // "Relevance"
-                    console.log("Selected value:", e.target.value); // "newest" or "oldest"
                     setRelevance(e.target.value as "newest" | "oldest");
                   }}
                   style={{ padding: "0.5rem 1rem", borderRadius: "0.3rem", border:"none" }}
