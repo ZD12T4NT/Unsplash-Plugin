@@ -24,3 +24,7 @@ local.settings.json
 *.sln
 *.sw?
 .vercel
+.env
+.env.local
+.env.development
+

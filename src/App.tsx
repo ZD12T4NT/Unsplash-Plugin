@@ -13,6 +13,83 @@ const PRESETS = [
   "business", "space", "colorful", "technology", "food", "texture", "interior", "wallpaper"
 ];
 
+// Add this small component above your App function
+function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
+  const [hover, setHover] = useState(false);
+
+  return (
+    <div
+      style={{ marginBottom: 0 }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: "0.3rem",
+          cursor: "pointer",
+        }}
+      >
+        <img
+          loading="lazy"
+          src={img.ThumbnailImageUrl}
+          alt={`Photo by ${img.AuthorAttributionName}`}
+          style={{
+            width: "100%",
+            height: "auto",
+            display: "block",
+            objectFit: "cover",
+            transform: hover ? "scale(1.05)" : "scale(1)",
+            transition: "transform 0.3s ease",
+          }}
+        />
+
+        {/* Centered Download button */}
+        <button
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            await registerDownload(img.DownloadLocation);
+            window.open(img.ThumbnailImageUrl, "_blank");
+          }}
+          style={{
+            position: "absolute",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "#000",
+            color: "#fff",
+            border: "none",
+           padding: "0.8rem 1.2rem",
+
+            borderRadius: "0.3rem",
+            opacity: hover ? 1 : 0,
+            transition: "opacity 0.3s ease",
+            cursor: "pointer",
+            fontSize: "12px",
+          }}
+        >
+          Use this image
+        </button>
+      </div>
+
+      <p style={{ fontSize: 12, marginTop: 4 }}>
+        Photo by{" "}
+        <a
+          href={img.AuthorAttributionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#000" }}
+        >
+          {img.AuthorAttributionName}
+        </a>
+      </p>
+    </div>
+  );
+}
+
+
 export function App() {
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"presets" | "search">("search");
@@ -70,48 +147,31 @@ const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | 
   };
   */
 
-  const renderResults = () => (
-    <ul
-      style={{
-        listStyle: "none",
-        padding: 0,
-        marginTop: "1.5rem",
-        display: "grid",
-        gridTemplateColumns: "repeat(2, 1fr)",
-        gap: "1rem",
-      }}
-    >
-      {results.map((img, index) => (
-        <li key={index} style={{ marginBottom: 0 }}>
-          <a
-            href={img.AuthorAttributionUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={async () => await registerDownload(img.DownloadLocation)}
-            style={{ display: "block" }}
-          >
-            <img
-              src={img.ThumbnailImageUrl}
-              alt={`Photo by ${img.AuthorAttributionName}`}
-              style={{
-                width: "100%",
-                height: "auto",
-                display: "block",
-                objectFit: "cover",
-              }}
-            />
-          </a>
-          <p style={{ fontSize: 12, marginTop: 4
-           }}>
-            Photo by{" "}
-            <a href={img.AuthorAttributionUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#000" }}>
-              {img.AuthorAttributionName}
-            </a>
-          </p>
-        </li>
-      ))}
-    </ul>
-  );
+const renderResults = () => (
+  <ul
+    style={{
+      listStyle: "none",
+      padding: 0,
+      marginTop: "1.5rem",
+      columnCount: 2,              // create a 2-column masonry layout
+      columnGap: "1rem",           // space between columns
+    }}
+  >
+    {results.map((img, index) => (
+      <li
+        key={index}
+        style={{
+          breakInside: "avoid",     // prevent images from splitting across columns
+          marginBottom: "1rem",
+        }}
+      >
+        <ImageItem img={img} />
+      </li>
+    ))}
+  </ul>
+);
+
+
 
   
 
