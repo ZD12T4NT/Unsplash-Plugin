@@ -13,7 +13,7 @@ const PRESETS = [
   "business", "space", "colorful", "technology", "food", "texture", "interior", "wallpaper"
 ];
 
-// Add this small component above your App function
+
 function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
   const [hover, setHover] = useState(false);
 
@@ -107,6 +107,7 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
 
 
 export function App() {
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
   const [modalOpen, setModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<"presets" | "search">("search");
   const [searchTerm, setSearchTerm] = useState("");
@@ -232,19 +233,36 @@ const renderResults = () => (
             zIndex: 1000,
           }}
         >
-          <div
+         <div
             style={{
-              background: "#fff",
+              background: theme === 'light' ? '#fff' : '#121212',
+              color: theme === 'light' ? '#000' : '#f5f5f5',
               minHeight: "30rem",
               width: "70%",
-              maxWidth: "720px",
               borderRadius: ".3rem",
               padding: "1.5rem",
               position: "relative",
               maxHeight: "90vh",
               overflowY: "auto",
+              transition: 'background 0.3s ease, color 0.3s ease',
             }}
           >
+
+            <button
+              onClick={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
+              style={{
+                marginBottom: '1rem',
+                padding: '0.5rem 1rem',
+                borderRadius: '0.3rem',
+                border: '1px solid #ccc',
+                background: theme === 'light' ? '#000' : '#fff',
+                color: theme === 'light' ? '#fff' : '#000',
+                cursor: 'pointer',
+              }}
+            >
+              {theme === 'light' ? 'Dark' : 'Light'}
+            </button>
+
             {/* Header */}
             <div
               style={{
@@ -280,7 +298,7 @@ const renderResults = () => (
                   justifyContent: "center",
                 }}
               >
-                <X size={20} />
+                <X style={{color: theme === 'light' ? '#000' : '#f5f5f5'}} size={20} />
               </button>
             </div>
 
@@ -352,8 +370,8 @@ const renderResults = () => (
                   gap: "0.4rem",
                   padding: "1rem 2rem",
                   borderRadius: "0.3rem",
-                  background: "#000",
-                  color: "#fff",
+                  background: theme === 'light' ? '#121212' : '#fff',
+                  color: theme === 'light' ? '#fff' : '#000',
                   border: "none",
                   cursor: "pointer",
                   fontWeight: "normal",
