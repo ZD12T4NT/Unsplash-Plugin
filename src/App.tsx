@@ -258,7 +258,7 @@ const renderResults = () => (
                 background: theme === 'light' ? '#000' : '#fff',
                 color: theme === 'light' ? '#fff' : '#000',
                 cursor: 'pointer',
-              }}
+              }} 
             >
               {theme === 'light' ? 'Dark' : 'Light'}
             </button>
