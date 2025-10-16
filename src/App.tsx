@@ -23,84 +23,83 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-      <div
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "0.3rem",
-          cursor: "pointer",
-        }}
-      >
-        <img
-          loading="lazy"
-          src={img.ThumbnailImageUrl}
-          alt={`Photo by ${img.AuthorAttributionName}`}
-          style={{
-            width: "100%",
-            height: "auto",
-            display: "block",
-            objectFit: "cover",
-            transform: hover ? "scale(1.05)" : "scale(1)",
-            transition: "transform 0.3s ease",
-          }}
-        />
+    <div
+  style={{
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: "0.3rem",
+    cursor: "pointer",
+  }}
+  onMouseEnter={() => setHover(true)}
+  onMouseLeave={() => setHover(false)}
+>
+  <img
+    loading="lazy"
+    src={img.ThumbnailImageUrl}
+    alt={`Photo by ${img.AuthorAttributionName}`}
+    style={{
+      width: "100%",
+      height: "auto",
+      display: "block",
+      objectFit: "cover",
+      transform: hover ? "scale(1.05)" : "scale(1)",
+      transition: "transform 0.3s ease",
+    }}
+  />
 
-      <button
-        onClick={async (e) => {
-          e.preventDefault();
-          e.stopPropagation();
+  <button
+    onClick={async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
 
-          // Register the download with your gateway
-          await registerDownload(img.DownloadLocation);
+      await registerDownload(img.DownloadLocation);
 
-          // Update the CMS hidden input
-          const hiddenInput = document.querySelector<HTMLInputElement>('#rk8jxokiure');
-          if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+      const container = document.querySelector<HTMLElement>(
+        '.dev-module-field[data-module-fieldid="Image"]'
+      );
+      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
 
-          // Update the Alt text field
-          const altInput = document.querySelector<HTMLInputElement>('#RK8JxoKIURE=tag');
-          if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+      if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+      if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
 
-          // Trigger input events so the CMS picks up the changes
-          hiddenInput?.dispatchEvent(new Event('input', { bubbles: true }));
-          altInput?.dispatchEvent(new Event('input', { bubbles: true }));
+      hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      altInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
-          // Optional: open the image in a new tab
-          window.open(img.ThumbnailImageUrl, '_blank');
-        }}
-        style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "#000",
-          color: "#fff",
-          border: "none",
-          padding: "0.8rem 1.2rem",
-          borderRadius: "0.3rem",
-          opacity: hover ? 1 : 0,
-          transition: "opacity 0.3s ease",
-          cursor: "pointer",
-          fontSize: "12px",
-        }}
-      >
-        Use this image
-      </button>
+      window.open(img.ThumbnailImageUrl, "_blank");
+    }}
+    style={{
+      position: "absolute",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      background: "#000",
+      color: "#fff",
+      border: "none",
+      padding: "0.8rem 1.2rem",
+      borderRadius: "0.3rem",
+      opacity: hover ? 1 : 0,
+      transition: "opacity 0.3s ease",
+      cursor: "pointer",
+      fontSize: "12px",
+    }}
+  >
+    Use this image
+  </button>
+</div>
 
+<p style={{ fontSize: 12, marginTop: 4 }}>
+  Photo by{" "}
+  <a
+    href={img.AuthorAttributionUrl}
+    target="_blank"
+    rel="noopener noreferrer"
+    style={{ color: "#000" }}
+  >
+    {img.AuthorAttributionName}
+  </a>
+</p>
 
-      </div>
-
-      <p style={{ fontSize: 12, marginTop: 4 }}>
-        Photo by{" "}
-        <a
-          href={img.AuthorAttributionUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: "#000" }}
-        >
-          {img.AuthorAttributionName}
-        </a>
-      </p>
     </div>
   );
 }

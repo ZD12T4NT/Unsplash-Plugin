@@ -28,3 +28,4 @@ local.settings.json
 .env.local
 .env.development
 
+# Use this to push to github as well Azure (git push github master)
