@@ -47,33 +47,49 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
     }}
   />
 
- <button
-  onClick={async (e) => {
-    e.preventDefault();
-    e.stopPropagation(); // prevent CMS from closing modal
+    <button
+      onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // prevent CMS from closing modal
 
-    await registerDownload(img.DownloadLocation);
+        await registerDownload(img.DownloadLocation);
 
-    const container = document.querySelector<HTMLElement>(
-      '.dev-module-field[data-module-fieldid="Image"]'
-    );
-    const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-    const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+        const container = document.querySelector<HTMLElement>(
+          '.dev-module-field[data-module-fieldid="Image"]'
+        );
+        const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+        const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
 
-    if (hiddenInput) hiddenInput.value = img.DownloadLocation;
-    if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+        if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+        if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
 
-    hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
-    altInput?.dispatchEvent(new Event("input", { bubbles: true }));
+        hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
+        altInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
-    console.log('[VENN] Image injected into CMS field');
+        console.log('[VENN] Image injected into CMS field');
+      }}
+      style={{
+        position: "absolute",
+        top: "50%",
+        left: "50%",
+        transform: "translate(-50%, -50%)",
+        background: "#000",
+        color: "#fff",
+        border: "none",
+        padding: "0.8rem 1.2rem",
+        borderRadius: "0.3rem",
+        opacity: 0,
+        cursor: "pointer",
+        fontSize: "12px",
+        transition: "opacity 0.3s ease",
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
+      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
+    >
+      Use this image
+    </button>
 
-    // optional: close modal only after user clicks “Save” in CMS
-    // setModalOpen(false);
-  }}
->
-  Use this image
-</button>
 
 </div>
 
@@ -159,7 +175,7 @@ const renderResults = () => (
       padding: 0,
       marginTop: "1.5rem",
       columnCount: 2,              // create a 2-column masonry layout
-      columnGap: "1rem",           // space between columns
+      columnGap: "2rem",           // space between columns
     }}
   >
     {results.map((img, index) => (
@@ -198,6 +214,7 @@ const renderResults = () => (
           e.stopPropagation(); // <-- prevents CMS from closing
           setModalOpen(true);
         }}
+          onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
         style={{
           padding: "0.8rem 1.2rem",
           background: "#000",
@@ -231,15 +248,16 @@ const renderResults = () => (
         background: theme === 'light' ? '#fff' : '#121212',
         color: theme === 'light' ? '#000' : '#f5f5f5',
         minHeight: "30rem",
-        width: "60%",
-        borderRadius: ".3rem",
+        width: "30%",
+        borderRadius: "10px",
         padding: "1.5rem",
         position: "relative",
         maxHeight: "90vh",
         overflowY: "auto",
         transition: 'background 0.3s ease, color 0.3s ease',
       }}
-      onClick={(e) => e.stopPropagation()} // ✅ stops clicks inside from closing modal
+        onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
+      onClick={(e) => e.stopPropagation()} // stops clicks inside from closing modal
     >
 
               <button
@@ -285,6 +303,7 @@ const renderResults = () => (
               </h2>
 
               <button
+                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation();
                   setModalOpen(false);
@@ -304,8 +323,9 @@ const renderResults = () => (
             </div>
 
             {/* Tabs */}
-            <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
+            <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
               <button
+                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation();
                   setActiveTab("presets");
@@ -329,6 +349,7 @@ const renderResults = () => (
               </button>
 
               <button
+                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation(); 
                   setActiveTab("search");
@@ -366,9 +387,11 @@ const renderResults = () => (
                   borderRadius: "0.3rem",
                   border: "1px solid #ccc",
                   fontSize: "14px",
+                  margin: "0"
                 }}
               />
               <button
+                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => { 
                     e.preventDefault();
                     e.stopPropagation(); basicSearch()
@@ -397,6 +420,7 @@ const renderResults = () => (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "2rem", paddingBottom: "1.5rem",borderBottom: "1px solid #ccc",}}>
                 {PRESETS.map((preset) => (
                   <button
+                    onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                     key={preset}
                     onClick={(e) => {
                       e.preventDefault();
@@ -431,7 +455,6 @@ const renderResults = () => (
                   alignItems: "center",
                   marginBottom: "2rem",
                   paddingBottom: "1.5rem",
-                  borderBottom: "1px solid #ccc",
                 }}
               >
                 {/* Image Type Buttons */}
