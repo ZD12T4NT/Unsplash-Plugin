@@ -18,104 +18,94 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
   const [hover, setHover] = useState(false);
 
   return (
-    <div
-      style={{ marginBottom: 0 }}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-    >
- <div
-  style={{
-    position: "relative",
-    overflow: "hidden",
-    borderRadius: "0.3rem",
-    cursor: "pointer",
-  }}
-  onMouseEnter={(e) => {
-    const btn = e.currentTarget.querySelector<HTMLButtonElement>('button');
-    if (btn) btn.style.opacity = "1";
-  }}
-  onMouseLeave={(e) => {
-    const btn = e.currentTarget.querySelector<HTMLButtonElement>('button');
-    if (btn) btn.style.opacity = "0";
-  }}
->
-  <img
-    loading="lazy"
-    src={img.ThumbnailImageUrl}
-    alt={`Photo by ${img.AuthorAttributionName}`}
-    style={{
-      width: "100%",
-      height: "auto",
-      display: "block",
-      objectFit: "cover",
-      transition: "transform 0.3s ease",
-    }}
-  />
+    <div style={{ marginBottom: 0 }}>
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: "0.3rem",
+          cursor: "pointer",
+        }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <img
+          loading="lazy"
+          src={img.ThumbnailImageUrl}
+          alt={`Photo by ${img.AuthorAttributionName}`}
+          style={{
+            width: "100%",
+            height: "auto",
+            display: "block",
+            objectFit: "cover",
+            transform: hover ? "scale(1.05)" : "scale(1)",
+            transition: "transform 0.3s ease",
+          }}
+        />
 
-  <button
-    onKeyDown={(e) => e.stopPropagation()} // prevent keyboard events from closing modal
-    onClick={async (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // prevent CMS modal from closing
+        <button
+          onKeyDown={(e) => e.stopPropagation()}
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
 
-      await registerDownload(img.DownloadLocation);
+            await registerDownload(img.DownloadLocation);
 
-      const container = document.querySelector<HTMLElement>(
-        '.dev-module-field[data-module-fieldid="Image"]'
-      );
-      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
-      const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
+            const container = document.querySelector<HTMLElement>(
+              '.dev-module-field[data-module-fieldid="Image"]'
+            );
+            const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+            const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+            const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
 
-      if (hiddenInput) hiddenInput.value = img.DownloadLocation;
-      if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
-      if (draggingArea) draggingArea.style.backgroundImage = `url(${img.ThumbnailImageUrl})`;
+            if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+            if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+            if (draggingArea) draggingArea.style.backgroundImage = `url(${img.ThumbnailImageUrl})`;
 
-      hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
-      altInput?.dispatchEvent(new Event("input", { bubbles: true }));
+            hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
+            altInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
-      console.log('[VENN] Image injected into CMS field');
-    }}
-    style={{
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      background: "rgba(0,0,0,0.5)",
-      color: "#fff",
-      border: "none",
-      padding: "0.8rem 1.2rem",
-      borderRadius: "0.3rem",
-      opacity: 0,
-      cursor: "pointer",
-      fontSize: "12px",
-      transition: "opacity 0.3s ease",
-    }}
-  >
-    Use this image
-  </button>
-</div>
+            console.log('[VENN] Image injected into CMS field');
+          }}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            background: "rgba(0,0,0,0.5)",
+            color: "#fff",
+            border: "none",
+            padding: "0.8rem 1.2rem",
+            borderRadius: "0.3rem",
+            opacity: hover ? 1 : 0,
+            cursor: "pointer",
+            fontSize: "12px",
+            transition: "opacity 0.3s ease",
+          }}
+        >
+          Use this image
+        </button>
+      </div>
 
-
-<p style={{ fontSize: 12, marginTop: 4 }}>
-  Photo by{" "}
-  <a
-    href={img.AuthorAttributionUrl}
-    target="_blank"
-    rel="noopener noreferrer"
-    style={{ color: "#000" }}
-  >
-    {img.AuthorAttributionName}
-  </a>
-</p>
-
+      <p style={{ fontSize: 12, marginTop: 4 }}>
+        Photo by{" "}
+        <a
+          href={img.AuthorAttributionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#000" }}
+        >
+          {img.AuthorAttributionName}
+        </a>
+      </p>
     </div>
   );
 }
+
 
 
 export function App() {
