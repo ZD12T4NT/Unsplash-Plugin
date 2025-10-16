@@ -238,7 +238,7 @@ const renderResults = () => (
               background: theme === 'light' ? '#fff' : '#121212',
               color: theme === 'light' ? '#000' : '#f5f5f5',
               minHeight: "30rem",
-              width: "70%",
+              width: "60%",
               borderRadius: ".3rem",
               padding: "1.5rem",
               position: "relative",
@@ -505,7 +505,10 @@ const renderResults = () => (
         </div>
       )}
     </>
+    
   );
+  
 }
 
 export default App;
+
