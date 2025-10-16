@@ -1,7 +1,5 @@
-// -------------------------
-// Imports
-// -------------------------
-import { jwtDecode } from "jwt-decode";
+
+// Local Version
 
 // -------------------------
 // DTOs
@@ -25,216 +23,272 @@ const API_BASE = "https://gateway.dev.wearevennture.co.uk/content-generation";
 // -------------------------
 // JWT token config
 // -------------------------
-interface JwtPayload {
-  exp: number;
-  [key: string]: any;
-}
+const TEST_JWT_TOKEN: string | undefined =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6InZlbm50dXJlZ2F0ZXdheSIsInJvbGVzIjpbIkpvYlNlYXJjaCJdLCJuYmYiOjE3NTk1MDI4NzUsImV4cCI6MTc1OTUxNzMzNSwiaWF0IjoxNzU5NTAyOTM1LCJpc3MiOiJ2ZW5udHVyZWdhdGV3YXkiLCJhdWQiOiJ2ZW5udHVyZWdhdGV3YXkifQ.4qVxxoAxg5qELz85_ODbC1xRKcwl5-pRYuSKFmy8Fl0";
 
-let cachedToken: string | null = null;
-let tokenExpiry: number | null = null;
+let cachedToken: string | undefined = TEST_JWT_TOKEN;
 
-// Fetch a new JWT token from the gateway
-async function fetchNewToken(): Promise<string> {
-  const authUrl = `${API_BASE.replace("/content-generation", "")}/auth`;
+async function getJwtToken(): Promise<string> {
+  if (cachedToken !== undefined) return cachedToken;
+
   const currentOrigin = window.location.origin;
 
-  console.log("[JWT] Fetching new token from gateway...");
-  const res = await fetch(authUrl, {
+  const res = await fetch(`${API_BASE.replace("/content-generation", "")}/auth`, {
     method: "GET",
     headers: { Referer: currentOrigin },
   });
 
-  if (!res.ok) {
-    throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error("Failed to fetch JWT token");
 
   const json = await res.json();
-  console.log("[JWT] Raw JSON from auth endpoint:", json);
-
-  if (!json.token || typeof json.token !== "string") {
-    throw new Error("[JWT] Token not found in response");
-  }
+  if (!json.token) throw new Error("JWT token not found in response");
 
   cachedToken = json.token;
-
-  // runtime null check before decoding
-  if (!cachedToken) {
-    throw new Error("[JWT] No token available to decode");
-  }
-
-  try {
-    const decoded = jwtDecode<JwtPayload>(cachedToken);
-    tokenExpiry = decoded.exp * 1000; // convert to milliseconds
-    console.log("[JWT] Token expires at:", new Date(tokenExpiry).toLocaleString());
-  } catch {
-    tokenExpiry = null;
-    console.warn("[JWT] Failed to decode token expiry, using indefinite cache");
-  }
-
+  if (cachedToken === undefined) throw new Error("JWT token is undefined");
   return cachedToken;
 }
 
-// Get JWT token with caching and expiration handling
-export async function getJwtToken(): Promise<string> {
-  const now = Date.now();
+// -------------------------
+// Mock images for local testing 
+// -------------------------
+const mockImages: UnsplashSearchResponseItemDto[] = [
+  {
+    DownloadLocation: "mock-abc123",
+    ThumbnailImageUrl:
+      "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=400&h=300&fit=crop",
+    AuthorAttributionName: "John Doe",
+    AuthorAttributionUrl: "https://unsplash.com/@3tnik",
+  },
+  {
+    DownloadLocation: "mock-def456",
+    ThumbnailImageUrl:
+      "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=300&fit=crop",
+    AuthorAttributionName: "Jane Smith",
+    AuthorAttributionUrl: "https://unsplash.com/@jorainternet",
+  },
+  {
+    DownloadLocation: "mock-ghi789",
+    ThumbnailImageUrl:
+      "https://images.unsplash.com/photo-1499084732479-de2c02d45fc4?w=400&h=300&fit=crop",
+    AuthorAttributionName: "Alice Johnson",
+    AuthorAttributionUrl: "https://unsplash.com/@alexmachado",
+  },
+  {
+    DownloadLocation: "mock-jkl012",
+    ThumbnailImageUrl:
+      "https://images.unsplash.com/photo-1517817748495-63c1028a1de5?w=400&h=300&fit=crop",
+    AuthorAttributionName: "Mark Wilson",
+    AuthorAttributionUrl: "https://unsplash.com/@markwilson",
+  },
+];
 
-  // Use cached token if still valid
-  if (cachedToken && (!tokenExpiry || tokenExpiry - now > 5000)) {
-    console.log("[JWT] Returning cached token");
-    return cachedToken;
+
+// -------------------------
+// Search Images
+// -------------------------
+export async function searchImages(
+  query: string,
+  retries = 20,
+  delayMs = 1500
+): Promise<UnsplashSearchResponseSetDto> {
+  try {
+    const JWT_TOKEN = await getJwtToken();
+
+    const res = await fetch(`${API_BASE}/search-unsplash`, {
+      method: "POST",
+      headers: {
+        accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${JWT_TOKEN}`,
+      },
+      body: JSON.stringify({ prompt: query }),
+    });
+
+    // Retry if 202 = accepted but not ready
+    if (res.status === 202) {
+      if (retries <= 0) return { data: mockImages };
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+      return searchImages(query, retries - 1, delayMs);
+    }
+
+    if (!res.ok) return { data: mockImages };
+
+    const json = await res.json();
+    const items = json.data ?? json.Data ?? [];
+
+    const mappedItems: UnsplashSearchResponseItemDto[] = items.map((item: any) => ({
+      DownloadLocation: item.DownloadLocation,
+      ThumbnailImageUrl: item.ThumbnailImageUrl,
+      AuthorAttributionName: item.AuthorAttributionName,
+      AuthorAttributionUrl: item.AuthorAttributionUrl,
+    }));
+
+    return mappedItems.length > 0 ? { data: mappedItems } : { data: mockImages };
+  } catch (err) {
+    console.warn("Search failed, using mock images", err);
+    return { data: mockImages };
   }
-
-  // Local dev token fallback from .env
-  if (import.meta.env.VITE_TEST_JWT_TOKEN) {
-    cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
-    tokenExpiry = null;
-    console.log("[JWT] Using local dev token fallback");
-    return cachedToken as string;
-  }
-
-  // Fetch new token
-  return fetchNewToken();
 }
 
 // -------------------------
-// Mock Images (for local testing)
+// Mock register/download
 // -------------------------
+export async function registerDownload(url: string) {
+  console.log("Mock register download for:", url);
+  // Simulate a small delay
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  return { success: true, url };
+}
+
+
+
+
+// Gateway version 
+
+// // -------------------------
+// // DTOs
+// // -------------------------
+// export interface UnsplashSearchResponseItemDto {
+//   DownloadLocation: string;
+//   ThumbnailImageUrl: string;
+//   AuthorAttributionName: string;
+//   AuthorAttributionUrl: string;
+// }
+
+// export interface UnsplashSearchResponseSetDto {
+//   data: UnsplashSearchResponseItemDto[];
+// }
+
+// // -------------------------
+// // Gateway API config
+// // -------------------------
+// const API_BASE = "https://gateway.dev.wearevennture.co.uk/content-generation";
+
+// // -------------------------
+// // JWT token config
+// // -------------------------
+// let cachedToken: string | undefined;
+
+// /**
+//  * Fetches JWT token.
+//  * Returns a string or throws an error.
+//  */
+// async function getJwtToken(): Promise<string> {
+//   if (cachedToken) return cachedToken;
+
+//   const currentOrigin = window.location.origin;
+
+//   const res = await fetch(`${API_BASE.replace("/content-generation", "")}/auth`, {
+//     method: "GET",
+//     headers: { Referer: currentOrigin },
+//   });
+
+//   if (!res.ok) throw new Error("Failed to fetch JWT token");
+
+//   const json = await res.json();
+//   if (!json.token) throw new Error("JWT token not found");
+
+//   cachedToken = json.token;
+//   return cachedToken;
+// }
+
+// // -------------------------
+// // Mock images for fallback/testing
+// // -------------------------
 // const mockImages: UnsplashSearchResponseItemDto[] = [
 //   {
 //     DownloadLocation: "mock-abc123",
 //     ThumbnailImageUrl: "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=400&h=300&fit=crop",
-//     AuthorAttributionName: "A C",
+//     AuthorAttributionName: "John Doe",
 //     AuthorAttributionUrl: "https://unsplash.com/@3tnik",
 //   },
 //   {
-//     DownloadLocation: "mock-1",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1751161749900-990bf22bb2ad?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "George",
-//     AuthorAttributionUrl: "https://unsplash.com/@dagerotip",
+//     DownloadLocation: "mock-def456",
+//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1504198453319-5ce911bafcde?w=400&h=300&fit=crop",
+//     AuthorAttributionName: "Jane Smith",
+//     AuthorAttributionUrl: "https://unsplash.com/@jorainternet",
 //   },
 //   {
-//     DownloadLocation: "mock-2",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1750836054429-4cfdf40b32f1?q=80&w=394&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Chris",
-//     AuthorAttributionUrl: "https://unsplash.com/@chrisvomradio",
+//     DownloadLocation: "mock-ghi789",
+//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1499084732479-de2c02d45fc4?w=400&h=300&fit=crop",
+//     AuthorAttributionName: "Alice Johnson",
+//     AuthorAttributionUrl: "https://unsplash.com/@alexmachado",
 //   },
 //   {
-//     DownloadLocation: "mock-3",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=352&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Johannes",
-//     AuthorAttributionUrl: "https://unsplash.com/@thejoltjoker",
-//   },
-//   {
-//     DownloadLocation: "mock-4",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1530908295418-a12e326966ba?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Kenrick",
-//     AuthorAttributionUrl: "https://unsplash.com/@kenrickmills",
+//     DownloadLocation: "mock-jkl012",
+//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1517817748495-63c1028a1de5?w=400&h=300&fit=crop",
+//     AuthorAttributionName: "Mark Wilson",
+//     AuthorAttributionUrl: "https://unsplash.com/@markwilson",
 //   },
 // ];
 
-// -------------------------
-// Config: toggle for gateway mode
-// -------------------------
-const USE_GATEWAY = true; // set to true for real gateway
+// // -------------------------
+// // Search Images (gateway + fallback)
+// // -------------------------
+// export async function searchImages(
+//   query: string,
+//   retries = 20,
+//   delayMs = 1500
+// ): Promise<UnsplashSearchResponseSetDto> {
+//   try {
+//     const JWT_TOKEN = await getJwtToken();
 
-// -------------------------
-// Search Images (robust + mock fallback)
-// -------------------------
-export async function searchImages(
-  query: string,
-  retries = 10,
-  delayMs = 1500
-): Promise<UnsplashSearchResponseSetDto> {
-  console.log(`[Search] Starting search for prompt: "${query}"`);
+//     const res = await fetch(`${API_BASE}/search-unsplash`, {
+//       method: "POST",
+//       headers: {
+//         accept: "application/json",
+//         "Content-Type": "application/json",
+//         Authorization: `Bearer ${JWT_TOKEN}`,
+//       },
+//       body: JSON.stringify({ prompt: query }),
+//     });
 
-  // if (!USE_GATEWAY) {
-  //   console.log("[Search] Using mock images (gateway disabled)");
-  //   return { data: mockImages };
-  // }
+//     if (res.status === 202) {
+//       if (retries <= 0) return { data: mockImages };
+//       await new Promise((resolve) => setTimeout(resolve, delayMs));
+//       return searchImages(query, retries - 1, delayMs);
+//     }
 
-  const JWT_TOKEN = await getJwtToken();
-  // console.log("[Search] Using JWT token:", JWT_TOKEN.slice(0, 10) + "...");
-console.log("[Search] Sending request to gateway:", {
-  url: `${API_BASE}/search-unsplash`,
-  body: { prompt: query },
-});
+//     if (!res.ok) return { data: mockImages };
 
-  const res = await fetch(`${API_BASE}/search-unsplash`, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${JWT_TOKEN}`,
-    },
-    body: JSON.stringify({ prompt: query }),
-  });
+//     const json = await res.json();
+//     const items = json.data ?? json.Data ?? [];
 
-  console.log("[Search] Response status:", res.status);
+//     const mappedItems: UnsplashSearchResponseItemDto[] = items.map((item: any) => ({
+//       DownloadLocation: item.DownloadLocation,
+//       ThumbnailImageUrl: item.ThumbnailImageUrl,
+//       AuthorAttributionName: item.AuthorAttributionName,
+//       AuthorAttributionUrl: item.AuthorAttributionUrl,
+//     }));
 
-  if (res.status === 202) {
-    console.log("[Search] Gateway returned 202 (processing), retrying...");
-    if (retries <= 0) {
-      console.warn("[Search] Max retries reached, returning mock images");
-      return { data: [] };
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
-    return searchImages(query, retries - 1, delayMs);
-  }
+//     return mappedItems.length > 0 ? { data: mappedItems } : { data: mockImages };
+//   } catch (err) {
+//     console.warn("Search failed, returning mock images", err);
+//     return { data: mockImages };
+//   }
+// }
 
-  if (!res.ok) {
-    console.warn("[Search] Fetch failed, returning mock images");
-    const text = await res.text();
-    console.log("[Search] Raw response text:", text);
-    return { data: [] };
-  }
+// // -------------------------
+// // Register / Download image
+// // -------------------------
+// export async function registerDownload(url: string) {
+//   try {
+//     const JWT_TOKEN = await getJwtToken();
+//     const res = await fetch(`${API_BASE}/download-unsplash`, {
+//       method: "POST",
+//       headers: {
+//         accept: "application/json",
+//         "Content-Type": "application/json",
+//         Authorization: `Bearer ${JWT_TOKEN}`,
+//       },
+//       body: JSON.stringify({ url }),
+//     });
 
-  const json = await res.json();
-  // console.log("[Search] Raw JSON from gateway:", json);
-console.log("[Search] Raw JSON from gateway:", JSON.stringify(json, null, 2));
+//     if (!res.ok) throw new Error("Failed to register download");
 
-  const items = json.data ?? json.Data ?? [];
-  console.log("[Search] Items array length:", items.length);
-
-const mappedItems = items.map((item: any) => ({
-  DownloadLocation: item.downloadLocation ?? item.DownloadLocation ?? "",
-  ThumbnailImageUrl: item.thumbnailImageUrl ?? item.ThumbnailImageUrl ?? "",
-  AuthorAttributionName: item.authorAttributionName ?? item.AuthorAttributionName ?? "",
-  AuthorAttributionUrl: item.authorAttributionUrl ?? item.AuthorAttributionUrl ?? "",
-}));
-
-
-  console.log("[Search] Mapped items ready for UI:", mappedItems.length);
-  return { data: mappedItems.length ? mappedItems : [] };
-}
-
-// -------------------------
-// Download/Register Image
-// -------------------------
-export async function registerDownload(url: string) {
-  console.log("[Download] Registering download for:", url);
-
-  if (!USE_GATEWAY) {
-    console.log("[Download] Gateway disabled, returning success");
-    return { success: true };
-  }
-
-  const JWT_TOKEN = await getJwtToken();
-  const res = await fetch(`${API_BASE}/download-unsplash`, {
-    method: "POST",
-    headers: {
-      accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${JWT_TOKEN}`,
-    },
-    body: JSON.stringify({ url }),
-  });
-
-  if (!res.ok) {
-    console.error("[Download] Failed to download image", res.status, res.statusText);
-    throw new Error("Failed to download image");
-  }
-
-  const json = await res.json();
-  console.log("[Download] Download registered successfully:", json);
-  return json;
-}
+//     return await res.json();
+//   } catch (err) {
+//     console.warn("Register download failed, mock response used", err);
+//     return { success: true, url }; // fallback
+//   }
+// }
