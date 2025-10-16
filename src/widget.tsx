@@ -2,27 +2,35 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 
 function init(config?: any) {
-  // Find the CMS modal (replace selector with your CMS modal class)
-  const cmsModal = document.querySelector<HTMLElement>('.cms-modal-selector');
-  if (!cmsModal) {
-    console.warn('[VENN] CMS modal not found');
-    return;
-  }
+  const interval = setInterval(() => {
+    const field = document.querySelector<HTMLElement>(
+      '.dev-module-field[data-module-fieldid="Image"]'
+    );
 
-  // Only inject once
-  if (cmsModal.querySelector('#venn-widget-root')) return;
+    const libraryBtn = field?.querySelector<HTMLElement>('.toggle-gallery');
 
-  // Create container and mount the React component
-  const mount = document.createElement("div");
-  mount.id = "venn-widget-root";
-  mount.style.display = "inline-block";
-  cmsModal.appendChild(mount);
+    if (!field || !libraryBtn) {
+      console.log('[VENN] Waiting for CMS modal...');
+      return;
+    }
 
-  // Prevent clicks from bubbling up and closing CMS modal
-  mount.addEventListener('click', (e) => e.stopPropagation());
+    clearInterval(interval);
 
-  const root = ReactDOM.createRoot(mount);
-  root.render(<App {...config} />);
+    if (field.querySelector('#venn-widget-root')) return;
+
+    const mount = document.createElement("div");
+    mount.id = "venn-widget-root";
+    mount.style.display = "inline-block";
+    libraryBtn.insertAdjacentElement('afterend', mount);
+
+    mount.addEventListener('click', (e) => e.stopPropagation());
+
+    const root = ReactDOM.createRoot(mount);
+    root.render(<App {...config} />);
+
+    console.log('[VENN] Widget injected');
+  }, 200); // check every 200ms
 }
+
 
 (window as any).VennWidget = { init };
