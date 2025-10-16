@@ -1,38 +1,25 @@
 import ReactDOM from "react-dom/client";
-import App from "./App"; // your Unsplash UI component
+import App from "./App";
 
 function init(config?: any) {
-  // Find the CMS Image field
-  const field = document.querySelector<HTMLElement>(
-    '.dev-module-field[data-module-fieldid="Image"]'
-  );
-
-  if (!field) {
-    console.warn('[VENN] CMS field not found');
-    return;
-  }
-
-  // Find the "or select from library" button
-  const libraryBtn = field.querySelector<HTMLElement>('.toggle-gallery');
-
-  if (!libraryBtn) {
-    console.warn('[VENN] Library button not found');
+  // Find the CMS modal (replace selector with your CMS modal class)
+  const cmsModal = document.querySelector<HTMLElement>('.cms-modal-selector');
+  if (!cmsModal) {
+    console.warn('[VENN] CMS modal not found');
     return;
   }
 
   // Only inject once
-  if (field.querySelector('#venn-widget-root')) return;
+  if (cmsModal.querySelector('#venn-widget-root')) return;
 
   // Create container and mount the React component
   const mount = document.createElement("div");
   mount.id = "venn-widget-root";
-  mount.style.display = "inline-block"; // optional styling
-  libraryBtn.insertAdjacentElement('afterend', mount);
+  mount.style.display = "inline-block";
+  cmsModal.appendChild(mount);
 
-  // **Stop clicks from bubbling to CMS**
-  mount.addEventListener('click', (e) => {
-    e.stopPropagation();
-  });
+  // Prevent clicks from bubbling up and closing CMS modal
+  mount.addEventListener('click', (e) => e.stopPropagation());
 
   const root = ReactDOM.createRoot(mount);
   root.render(<App {...config} />);
