@@ -242,20 +242,24 @@ const renderResults = () => (
       onClick={(e) => e.stopPropagation()} // ✅ stops clicks inside from closing modal
     >
 
-            <button
-              onClick={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
-              style={{
-                marginBottom: '1rem',
-                padding: '0.5rem 1rem',
-                borderRadius: '0.3rem',
-                border: '1px solid #ccc',
-                background: theme === 'light' ? '#000' : '#fff',
-                color: theme === 'light' ? '#fff' : '#000',
-                cursor: 'pointer',
-              }} 
-            >
-              {theme === 'light' ? 'Dark' : 'Light'}
-            </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation(); // Prevent CMS from closing modal
+                  setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
+                }}
+                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
+                style={{
+                  marginBottom: '1rem',
+                  padding: '0.5rem 1rem',
+                  borderRadius: '0.3rem',
+                  border: '1px solid #ccc',
+                  background: theme === 'light' ? '#000' : '#fff',
+                  color: theme === 'light' ? '#fff' : '#000',
+                  cursor: 'pointer',
+                }} 
+              >
+                {theme === 'light' ? 'Dark' : 'Light'}
+              </button>
 
             {/* Header */}
             <div
@@ -281,7 +285,10 @@ const renderResults = () => (
               </h2>
 
               <button
-                onClick={() => setModalOpen(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setModalOpen(false);
+                }}
                 style={{
                   background: "transparent",
                   border: "none",
@@ -299,7 +306,10 @@ const renderResults = () => (
             {/* Tabs */}
             <div style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
               <button
-                onClick={() => setActiveTab("presets")}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActiveTab("presets");
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -319,7 +329,10 @@ const renderResults = () => (
               </button>
 
               <button
-                onClick={() => setActiveTab("search")}
+                onClick={(e) => {
+                  e.stopPropagation(); 
+                  setActiveTab("search");
+                }}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -346,7 +359,7 @@ const renderResults = () => (
                 placeholder="Search images..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && basicSearch()}
+                onKeyDown={(e) => {e.stopPropagation(); if (e.key === "Enter")basicSearch()}}
                 style={{
                   flex: 1,
                   padding: "1rem 1.2rem",
@@ -356,7 +369,10 @@ const renderResults = () => (
                 }}
               />
               <button
-                onClick={() => basicSearch()}
+                onClick={(e) => { 
+                    e.preventDefault();
+                    e.stopPropagation(); basicSearch()
+                  }}
                 disabled={loading}
                 style={{
                   display: "flex",
@@ -382,7 +398,9 @@ const renderResults = () => (
                 {PRESETS.map((preset) => (
                   <button
                     key={preset}
-                    onClick={() => {
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation(); 
                       setSearchTerm(preset);
                       basicSearch(preset);
                       setActiveTab("search");
@@ -421,13 +439,18 @@ const renderResults = () => (
                   {["photos", "illustrations"].map((type) => (
                     <button
                       key={type}
-                      onClick={() => setImageType(type as "photos" | "illustrations")}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // Prevent CMS from closing modal
+                        setImageType(type as "photos" | "illustrations");
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()} // optional: prevent keyboard events
                       style={{
                         padding: "0.5rem 1rem",
                         borderRadius: "0.2rem",
                         border: imageType === type ? "1px solid #EFEFF0" : "none",
                         background: imageType === type ? "#EFEFF0" : "#fff",
-                        color: imageType === type ? "#000" : "#000",
+                        color: "#000",
                         cursor: "pointer",
                         fontWeight: "normal",
                         textTransform: "capitalize",
@@ -437,6 +460,7 @@ const renderResults = () => (
                     </button>
                   ))}
                 </div>
+
 
                 {/* Relevance & Orientation Dropdowns */}
                 <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
@@ -478,20 +502,26 @@ const renderResults = () => (
 
                 {/* Mock “View More” */}
                 <div style={{ textAlign: "center", marginTop: "1rem" }}>
-                  <button
-                    onClick={handleViewMore}
-                    style={{
-                      padding: "0.8rem 1.2rem",
-                      background: "#000",
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "0.2rem",
-                      cursor: "pointer",
-                      fontWeight: "normal",
-                    }}
-                  >
-                    View More
-                  </button>
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation(); // Prevent CMS from closing modal
+                        handleViewMore();
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()} // optional: prevent keyboard events from closing modal
+                      style={{
+                        padding: "0.8rem 1.2rem",
+                        background: "#000",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "0.2rem",
+                        cursor: "pointer",
+                        fontWeight: "normal",
+                      }}
+                    >
+                      View More
+                    </button>
+
                 </div>
               </>
             )}
