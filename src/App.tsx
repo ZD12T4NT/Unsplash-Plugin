@@ -102,7 +102,7 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
           {img.AuthorAttributionName}
         </a>
       </p>
-    </div>
+    </div> 
   );
 }
 
