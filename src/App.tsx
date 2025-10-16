@@ -23,15 +23,21 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
     >
-    <div
+ <div
   style={{
     position: "relative",
     overflow: "hidden",
     borderRadius: "0.3rem",
     cursor: "pointer",
   }}
-  onMouseEnter={() => setHover(true)}
-  onMouseLeave={() => setHover(false)}
+  onMouseEnter={(e) => {
+    const btn = e.currentTarget.querySelector<HTMLButtonElement>('button');
+    if (btn) btn.style.opacity = "1";
+  }}
+  onMouseLeave={(e) => {
+    const btn = e.currentTarget.querySelector<HTMLButtonElement>('button');
+    if (btn) btn.style.opacity = "0";
+  }}
 >
   <img
     loading="lazy"
@@ -42,56 +48,58 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
       height: "auto",
       display: "block",
       objectFit: "cover",
-      transform: hover ? "scale(1.05)" : "scale(1)",
       transition: "transform 0.3s ease",
     }}
   />
 
-    <button
-      onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
-      onClick={async (e) => {
-        e.preventDefault();
-        e.stopPropagation(); // prevent CMS from closing modal
+  <button
+    onKeyDown={(e) => e.stopPropagation()} // prevent keyboard events from closing modal
+    onClick={async (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // prevent CMS modal from closing
 
-        await registerDownload(img.DownloadLocation);
+      await registerDownload(img.DownloadLocation);
 
-        const container = document.querySelector<HTMLElement>(
-          '.dev-module-field[data-module-fieldid="Image"]'
-        );
-        const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-        const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+      const container = document.querySelector<HTMLElement>(
+        '.dev-module-field[data-module-fieldid="Image"]'
+      );
+      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+      const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
 
-        if (hiddenInput) hiddenInput.value = img.DownloadLocation;
-        if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+      if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+      if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+      if (draggingArea) draggingArea.style.backgroundImage = `url(${img.ThumbnailImageUrl})`;
 
-        hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
-        altInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      altInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
-        console.log('[VENN] Image injected into CMS field');
-      }}
-      style={{
-        position: "absolute",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        background: "#000",
-        color: "#fff",
-        border: "none",
-        padding: "0.8rem 1.2rem",
-        borderRadius: "0.3rem",
-        opacity: 0,
-        cursor: "pointer",
-        fontSize: "12px",
-        transition: "opacity 0.3s ease",
-      }}
-      onMouseEnter={(e) => (e.currentTarget.style.opacity = "1")}
-      onMouseLeave={(e) => (e.currentTarget.style.opacity = "0")}
-    >
-      Use this image
-    </button>
-
-
+      console.log('[VENN] Image injected into CMS field');
+    }}
+    style={{
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      background: "rgba(0,0,0,0.5)",
+      color: "#fff",
+      border: "none",
+      padding: "0.8rem 1.2rem",
+      borderRadius: "0.3rem",
+      opacity: 0,
+      cursor: "pointer",
+      fontSize: "12px",
+      transition: "opacity 0.3s ease",
+    }}
+  >
+    Use this image
+  </button>
 </div>
+
 
 <p style={{ fontSize: 12, marginTop: 4 }}>
   Photo by{" "}
