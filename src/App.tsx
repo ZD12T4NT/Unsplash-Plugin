@@ -204,7 +204,11 @@ const renderResults = () => (
     <>
       {/* Open modal button */}
       <button
-        onClick={() => setModalOpen(true)}
+         onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation(); // <-- prevents CMS from closing
+          setModalOpen(true);
+        }}
         style={{
           padding: "0.8rem 1.2rem",
           background: "#000",
