@@ -212,33 +212,35 @@ const renderResults = () => (
         Open Unsplash Plugin
       </button>
 
-      {modalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0, left: 0,
-            width: "100vw", height: "100vh",
-            background: "rgba(0, 0, 0, 0.6)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
-         <div
-            style={{
-              background: theme === 'light' ? '#fff' : '#121212',
-              color: theme === 'light' ? '#000' : '#f5f5f5',
-              minHeight: "30rem",
-              width: "60%",
-              borderRadius: ".3rem",
-              padding: "1.5rem",
-              position: "relative",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              transition: 'background 0.3s ease, color 0.3s ease',
-            }}
-          >
+    {modalOpen && (
+  <div
+    style={{
+      position: "fixed",
+      top: 0, left: 0,
+      width: "100vw", height: "100vh",
+      background: "rgba(0, 0, 0, 0.6)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 1000,
+    }}
+    onClick={() => setModalOpen(false)} // clicking outside closes modal
+  >
+    <div
+      style={{
+        background: theme === 'light' ? '#fff' : '#121212',
+        color: theme === 'light' ? '#000' : '#f5f5f5',
+        minHeight: "30rem",
+        width: "60%",
+        borderRadius: ".3rem",
+        padding: "1.5rem",
+        position: "relative",
+        maxHeight: "90vh",
+        overflowY: "auto",
+        transition: 'background 0.3s ease, color 0.3s ease',
+      }}
+      onClick={(e) => e.stopPropagation()} // ✅ stops clicks inside from closing modal
+    >
 
             <button
               onClick={() => setTheme(prev => (prev === 'light' ? 'dark' : 'light'))}
