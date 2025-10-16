@@ -29,6 +29,11 @@ function init(config?: any) {
   mount.style.display = "inline-block"; // optional styling
   libraryBtn.insertAdjacentElement('afterend', mount);
 
+  // **Stop clicks from bubbling to CMS**
+  mount.addEventListener('click', (e) => {
+    e.stopPropagation();
+  });
+
   const root = ReactDOM.createRoot(mount);
   root.render(<App {...config} />);
 }

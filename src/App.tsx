@@ -47,45 +47,34 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
     }}
   />
 
-  <button
-    onClick={async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
+ <button
+  onClick={async (e) => {
+    e.preventDefault();
+    e.stopPropagation(); // prevent CMS from closing modal
 
-      await registerDownload(img.DownloadLocation);
+    await registerDownload(img.DownloadLocation);
 
-      const container = document.querySelector<HTMLElement>(
-        '.dev-module-field[data-module-fieldid="Image"]'
-      );
-      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+    const container = document.querySelector<HTMLElement>(
+      '.dev-module-field[data-module-fieldid="Image"]'
+    );
+    const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+    const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
 
-      if (hiddenInput) hiddenInput.value = img.DownloadLocation;
-      if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
+    if (hiddenInput) hiddenInput.value = img.DownloadLocation;
+    if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
 
-      hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
-      altInput?.dispatchEvent(new Event("input", { bubbles: true }));
+    hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
+    altInput?.dispatchEvent(new Event("input", { bubbles: true }));
 
-      window.open(img.ThumbnailImageUrl, "_blank");
-    }}
-    style={{
-      position: "absolute",
-      top: "50%",
-      left: "50%",
-      transform: "translate(-50%, -50%)",
-      background: "#000",
-      color: "#fff",
-      border: "none",
-      padding: "0.8rem 1.2rem",
-      borderRadius: "0.3rem",
-      opacity: hover ? 1 : 0,
-      transition: "opacity 0.3s ease",
-      cursor: "pointer",
-      fontSize: "12px",
-    }}
-  >
-    Use this image
-  </button>
+    console.log('[VENN] Image injected into CMS field');
+
+    // optional: close modal only after user clicks “Save” in CMS
+    // setModalOpen(false);
+  }}
+>
+  Use this image
+</button>
+
 </div>
 
 <p style={{ fontSize: 12, marginTop: 4 }}>
