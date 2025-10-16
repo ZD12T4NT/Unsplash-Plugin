@@ -49,7 +49,7 @@ async function getJwtToken(): Promise<string> {
 }
 
 // -------------------------
-// Mock images for local testing
+// Mock images for local testing 
 // -------------------------
 const mockImages: UnsplashSearchResponseItemDto[] = [
   {
