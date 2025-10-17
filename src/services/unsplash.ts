@@ -18,12 +18,15 @@ export interface UnsplashSearchResponseSetDto {
 }
 
 // -------------------------
-// Gateway API config
+// Config
 // -------------------------
-const API_BASE = "https://gateway.dev.wearevennture.co.uk/content-generation";
+// All API calls go through backend in production.
+// Localhost can still hit the gateway directly for dev testing.
+const GATEWAY_BASE = "https://gateway.wearevennture.co.uk/content-generation";
+const API_BASE = ""; // relative => /api/* routes
 
 // -------------------------
-// JWT token config
+// JWT Handling
 // -------------------------
 interface JwtPayload {
   exp: number;
@@ -33,208 +36,146 @@ interface JwtPayload {
 let cachedToken: string | null = null;
 let tokenExpiry: number | null = null;
 
-// Fetch a new JWT token from the gateway
+/**
+ * Securely fetch a new JWT.
+ * - Local dev → Gateway direct (for testing)
+ * - Production → Your backend proxy (/api/get-venn-jwt)
+ */
 async function fetchNewToken(): Promise<string> {
-  const authUrl = `${API_BASE.replace("/content-generation", "")}/auth`;
+  const isLocal = window.location.hostname === "localhost";
   const currentOrigin = window.location.origin;
 
-  console.log("[JWT] Fetching new token from gateway...");
+  const authUrl = isLocal ? `${GATEWAY_BASE.replace("/content-generation", "")}/auth` : "/api/get-venn-jwt";
+  console.log(`[JWT] Fetching new token from: ${authUrl}`);
+
   const res = await fetch(authUrl, {
     method: "GET",
-    headers: { Referer: currentOrigin },
+    headers: isLocal ? { Referer: currentOrigin } : {},
   });
 
-  if (!res.ok) {
-    throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
 
   const json = await res.json();
-  console.log("[JWT] Raw JSON from auth endpoint:", json);
+  const token = json.token || json.Token;
+  if (!token) throw new Error("[JWT] Invalid token response");
 
-  if (!json.token || typeof json.token !== "string") {
-    throw new Error("[JWT] Token not found in response");
-  }
-
-  cachedToken = json.token;
-
-  // runtime null check before decoding
-  if (!cachedToken) {
-    throw new Error("[JWT] No token available to decode");
-  }
+  cachedToken = token;
 
   try {
-    const decoded = jwtDecode<JwtPayload>(cachedToken);
-    tokenExpiry = decoded.exp * 1000; // convert to milliseconds
+    const decoded = jwtDecode<JwtPayload>(token);
+    tokenExpiry = decoded.exp * 1000;
     console.log("[JWT] Token expires at:", new Date(tokenExpiry).toLocaleString());
-  } catch {
+  } catch (err) {
+    console.warn("[JWT] Could not decode expiry; caching indefinitely", err);
     tokenExpiry = null;
-    console.warn("[JWT] Failed to decode token expiry, using indefinite cache");
   }
 
-  return cachedToken;
+  return token;
 }
 
-// Get JWT token with caching and expiration handling
+/**
+ * Get JWT from cache, refresh if expired.
+ */
 export async function getJwtToken(): Promise<string> {
   const now = Date.now();
 
-  // Use cached token if still valid
-  if (cachedToken && (!tokenExpiry || tokenExpiry - now > 5000)) {
-    console.log("[JWT] Returning cached token");
-    return cachedToken;
-  }
+  if (cachedToken && (!tokenExpiry || tokenExpiry - now > 5000)) return cachedToken;
 
-  // Local dev token fallback from .env
-  if (import.meta.env.VITE_TEST_JWT_TOKEN) {
+  // optional local .env fallback
+  if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localhost") {
+    console.log("[JWT] Using .env test token");
     cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
     tokenExpiry = null;
-    console.log("[JWT] Using local dev token fallback");
     return cachedToken as string;
   }
 
-  // Fetch new token
   return fetchNewToken();
 }
 
 // -------------------------
-// Mock Images (for local testing)
+// Search Images
 // -------------------------
-// const mockImages: UnsplashSearchResponseItemDto[] = [
-//   {
-//     DownloadLocation: "mock-abc123",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1503023345310-bd7c1de61c7d?w=400&h=300&fit=crop",
-//     AuthorAttributionName: "A C",
-//     AuthorAttributionUrl: "https://unsplash.com/@3tnik",
-//   },
-//   {
-//     DownloadLocation: "mock-1",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1751161749900-990bf22bb2ad?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "George",
-//     AuthorAttributionUrl: "https://unsplash.com/@dagerotip",
-//   },
-//   {
-//     DownloadLocation: "mock-2",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1750836054429-4cfdf40b32f1?q=80&w=394&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Chris",
-//     AuthorAttributionUrl: "https://unsplash.com/@chrisvomradio",
-//   },
-//   {
-//     DownloadLocation: "mock-3",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1472396961693-142e6e269027?q=80&w=352&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Johannes",
-//     AuthorAttributionUrl: "https://unsplash.com/@thejoltjoker",
-//   },
-//   {
-//     DownloadLocation: "mock-4",
-//     ThumbnailImageUrl: "https://images.unsplash.com/photo-1530908295418-a12e326966ba?q=80&w=387&auto=format&fit=crop&ixlib=rb-4.1.0",
-//     AuthorAttributionName: "Kenrick",
-//     AuthorAttributionUrl: "https://unsplash.com/@kenrickmills",
-//   },
-// ];
+export async function searchImages(query: string, retries = 10, delayMs = 1500): Promise<UnsplashSearchResponseSetDto> {
+  if (!query) throw new Error("[Search] Missing query");
+  console.log(`[Search] Searching for: "${query}"`);
 
-// -------------------------
-// Config: toggle for gateway mode
-// -------------------------
-const USE_GATEWAY = true; // set to true for real gateway
+  const isLocal = window.location.hostname === "localhost";
+  const endpoint = isLocal ? `${GATEWAY_BASE}/search-unsplash` : "/api/search-unsplash";
 
-// -------------------------
-// Search Images (robust + mock fallback)
-// -------------------------
-export async function searchImages(
-  query: string,
-  retries = 10,
-  delayMs = 1500
-): Promise<UnsplashSearchResponseSetDto> {
-  console.log(`[Search] Starting search for prompt: "${query}"`);
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    "Content-Type": "application/json",
+  };
 
-  // if (!USE_GATEWAY) {
-  //   console.log("[Search] Using mock images (gateway disabled)");
-  //   return { data: mockImages };
-  // }
+  if (isLocal) {
+    const token = await getJwtToken();
+    headers.Authorization = `Bearer ${token}`;
+  }
 
-  const JWT_TOKEN = await getJwtToken();
-  // console.log("[Search] Using JWT token:", JWT_TOKEN.slice(0, 10) + "...");
-console.log("[Search] Sending request to gateway:", {
-  url: `${API_BASE}/search-unsplash`,
-  body: { prompt: query },
-});
-
-  const res = await fetch(`${API_BASE}/search-unsplash`, {
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${JWT_TOKEN}`,
-    },
+    headers,
     body: JSON.stringify({ prompt: query }),
   });
 
-  console.log("[Search] Response status:", res.status);
-
   if (res.status === 202) {
-    console.log("[Search] Gateway returned 202 (processing), retrying...");
-    if (retries <= 0) {
-      console.warn("[Search] Max retries reached, returning mock images");
-      return { data: [] };
-    }
-    await new Promise((resolve) => setTimeout(resolve, delayMs));
+    if (retries <= 0) throw new Error("[Search] Max retries reached");
+    console.log("[Search] Still processing, retrying...");
+    await new Promise((r) => setTimeout(r, delayMs));
     return searchImages(query, retries - 1, delayMs);
   }
 
   if (!res.ok) {
-    console.warn("[Search] Fetch failed, returning mock images");
-    const text = await res.text();
-    console.log("[Search] Raw response text:", text);
+    console.error("[Search] Failed request:", res.status, res.statusText);
     return { data: [] };
   }
 
   const json = await res.json();
-  // console.log("[Search] Raw JSON from gateway:", json);
-console.log("[Search] Raw JSON from gateway:", JSON.stringify(json, null, 2));
-
   const items = json.data ?? json.Data ?? [];
-  console.log("[Search] Items array length:", items.length);
 
-const mappedItems = items.map((item: any) => ({
-  DownloadLocation: item.downloadLocation ?? item.DownloadLocation ?? "",
-  ThumbnailImageUrl: item.thumbnailImageUrl ?? item.ThumbnailImageUrl ?? "",
-  AuthorAttributionName: item.authorAttributionName ?? item.AuthorAttributionName ?? "",
-  AuthorAttributionUrl: item.authorAttributionUrl ?? item.AuthorAttributionUrl ?? "",
-}));
+  const mapped = items.map((item: any) => ({
+    DownloadLocation: item.downloadLocation ?? item.DownloadLocation ?? "",
+    ThumbnailImageUrl: item.thumbnailImageUrl ?? item.ThumbnailImageUrl ?? "",
+    AuthorAttributionName: item.authorAttributionName ?? item.AuthorAttributionName ?? "",
+    AuthorAttributionUrl: item.authorAttributionUrl ?? item.AuthorAttributionUrl ?? "",
+  }));
 
-
-  console.log("[Search] Mapped items ready for UI:", mappedItems.length);
-  return { data: mappedItems.length ? mappedItems : [] };
+  console.log(`[Search] Found ${mapped.length} images`);
+  return { data: mapped };
 }
 
 // -------------------------
-// Download/Register Image
+// Register Download
 // -------------------------
 export async function registerDownload(url: string) {
-  console.log("[Download] Registering download for:", url);
+  if (!url) throw new Error("[Download] Missing URL");
+  console.log("[Download] Registering:", url);
 
-  if (!USE_GATEWAY) {
-    console.log("[Download] Gateway disabled, returning success");
-    return { success: true };
+  const isLocal = window.location.hostname === "localhost";
+  const endpoint = isLocal ? `${GATEWAY_BASE}/download-unsplash` : "/api/download-unsplash";
+
+  const headers: Record<string, string> = {
+    accept: "application/json",
+    "Content-Type": "application/json",
+  };
+
+  if (isLocal) {
+    const token = await getJwtToken();
+    headers.Authorization = `Bearer ${token}`;
   }
 
-  const JWT_TOKEN = await getJwtToken();
-  const res = await fetch(`${API_BASE}/download-unsplash`, {
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${JWT_TOKEN}`,
-    },
+    headers,
     body: JSON.stringify({ url }),
   });
 
   if (!res.ok) {
-    console.error("[Download] Failed to download image", res.status, res.statusText);
-    throw new Error("Failed to download image");
+    console.error("[Download] Failed:", res.statusText);
+    throw new Error("Failed to register download");
   }
 
   const json = await res.json();
-  console.log("[Download] Download registered successfully:", json);
+  console.log("[Download] Success:", json);
   return json;
 }
