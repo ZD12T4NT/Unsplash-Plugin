@@ -98,39 +98,20 @@ if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localho
 // -------------------------
 // Search Images
 // -------------------------
-export async function searchImages(query: string, retries = 10, delayMs = 1500): Promise<UnsplashSearchResponseSetDto> {
+
+const VERCEL_API_BASE = "https://unsplash-plugin.vercel.app/api";
+
+export async function searchImages(query: string): Promise<UnsplashSearchResponseSetDto> {
   if (!query) throw new Error("[Search] Missing query");
-  console.log(`[Search] Searching for: "${query}"`);
 
-  const isLocal = window.location.hostname === "localhost";
-  const endpoint = isLocal
-  ? `${GATEWAY_BASE}/search-unsplash`
-  : "https://unsplash-plugin.vercel.app/api/search-unsplash";
-
-
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    "Content-Type": "application/json",
-  };
-
-  if (isLocal) {
-    const token = await getJwtToken();
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const res = await fetch(endpoint, {
+  const res = await fetch(`${VERCEL_API_BASE}/search-unsplash`, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      accept: "application/json",
+    },
     body: JSON.stringify({ prompt: query }),
   });
-
-  if (res.status === 202) {
-    if (retries <= 0) throw new Error("[Search] Max retries reached");
-    console.log("[Search] Still processing, retrying...");
-    await new Promise((r) => setTimeout(r, delayMs));
-    return searchImages(query, retries - 1, delayMs);
-    
-  }
 
   if (!res.ok) {
     console.error("[Search] Failed request:", res.status, res.statusText);
@@ -138,57 +119,32 @@ export async function searchImages(query: string, retries = 10, delayMs = 1500):
   }
 
   const json = await res.json();
-  const items = json.data ?? json.Data ?? [];
-
-  const mapped = items.map((item: any) => ({
-    DownloadLocation: item.downloadLocation ?? item.DownloadLocation ?? "",
-    ThumbnailImageUrl: item.thumbnailImageUrl ?? item.ThumbnailImageUrl ?? "",
-    AuthorAttributionName: item.authorAttributionName ?? item.AuthorAttributionName ?? "",
-    AuthorAttributionUrl: item.authorAttributionUrl ?? item.AuthorAttributionUrl ?? "",
-  }));
-
-  console.log("Mapped items:", mapped);
-
-
-  console.log(`[Search] Found ${mapped.length} images`);
-  return { data: mapped };
+  const items = json.data ?? [];
+  return {
+    data: items.map((item: any) => ({
+      DownloadLocation: item.downloadLocation ?? "",
+      ThumbnailImageUrl: item.thumbnailImageUrl ?? "",
+      AuthorAttributionName: item.authorAttributionName ?? "",
+      AuthorAttributionUrl: item.authorAttributionUrl ?? "",
+    })),
+  };
 }
+
 
 // -------------------------
 // Register Download
 // -------------------------
 export async function registerDownload(url: string) {
   if (!url) throw new Error("[Download] Missing URL");
-  console.log("[Download] Registering:", url);
 
-  const isLocal = window.location.hostname === "localhost";
-  const endpoint = isLocal
-  ? `${GATEWAY_BASE}/download-unsplash`
-  : "https://unsplash-plugin.vercel.app/api/download-unsplash";
-
-
-  const headers: Record<string, string> = {
-    accept: "application/json",
-    "Content-Type": "application/json",
-  };
-
-  if (isLocal) {
-    const token = await getJwtToken();
-    headers.Authorization = `Bearer ${token}`;
-  }
-
-  const res = await fetch(endpoint, {
+  const res = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json", accept: "application/json" },
     body: JSON.stringify({ url }),
   });
 
-  if (!res.ok) {
-    console.error("[Download] Failed:", res.statusText);
-    throw new Error("Failed to register download");
-  }
+  if (!res.ok) throw new Error("Failed to register download");
 
-  const json = await res.json();
-  console.log("[Download] Success:", json);
-  return json;
+  return res.json();
 }
+
