@@ -23,7 +23,7 @@ export interface UnsplashSearchResponseSetDto {
 // All API calls go through backend in production.
 // Localhost can still hit the gateway directly for dev testing.
 const GATEWAY_BASE = "https://gateway.wearevennture.co.uk/content-generation";
-const API_BASE = ""; // relative => /api/* routes
+// const API_BASE = ""; relative => /api/* routes
 
 // -------------------------
 // JWT Handling
