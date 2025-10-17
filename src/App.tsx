@@ -246,7 +246,7 @@ const renderResults = () => (
         background: theme === 'light' ? '#fff' : '#121212',
         color: theme === 'light' ? '#000' : '#f5f5f5',
         minHeight: "30rem",
-        width: "30%",
+        width: "40%",
         borderRadius: "10px",
         padding: "1.5rem",
         position: "relative",
