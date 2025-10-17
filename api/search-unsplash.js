@@ -32,7 +32,12 @@ export default async function handler(req, res) {
 
     res.status(200).json(await gwRes.json());
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
+  console.error("[API] search-unsplash error:", err);
+  return res.status(500).json({
+    error: "Internal server error",
+    message: err.message,
+    stack: err.stack,
+  });
+}
+
 }

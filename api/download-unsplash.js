@@ -45,7 +45,12 @@ export default async function handler(req, res) {
     const json = await gwRes.json();
     return res.status(200).json(json);
   } catch (err) {
-    console.error("[API] download-unsplash error:", err);
-    return res.status(500).json({ error: "Internal server error" });
-  }
+  console.error("[API] downloadunsplash error:", err);
+  return res.status(500).json({
+    error: "Internal server error",
+    message: err.message,
+    stack: err.stack,
+  });
+}
+
 }
