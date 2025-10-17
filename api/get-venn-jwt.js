@@ -1,14 +1,18 @@
 // get-venn-jwt.js
 
-
 export default async function handler(req, res) {
   try {
     const gatewayAuthUrl = "https://gateway.wearevennture.co.uk/auth";
 
+    const referer =
+      process.env.NODE_ENV === "development"
+        ? (req.headers.origin || "")
+        : "https://cms.wearevennture.co.uk"; // the domain the gateway expects
+
     const gwRes = await fetch(gatewayAuthUrl, {
       method: "GET",
       headers: {
-        Referer: req.headers.origin || "",
+        Referer: referer,
       },
     });
 
