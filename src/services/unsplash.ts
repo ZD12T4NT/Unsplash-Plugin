@@ -79,15 +79,18 @@ async function fetchNewToken(): Promise<string> {
 export async function getJwtToken(): Promise<string> {
   const now = Date.now();
 
-  if (cachedToken && (!tokenExpiry || tokenExpiry - now > 5000)) return cachedToken;
+  if (cachedToken && (!tokenExpiry || tokenExpiry - now > 5000)) 
+    return cachedToken;
 
   // optional local .env fallback
-  if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localhost") {
-    console.log("[JWT] Using .env test token");
-    cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
-    tokenExpiry = null;
-    return cachedToken as string;
-  }
+if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localhost") {
+  cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
+  tokenExpiry = null;
+  console.log("[JWT] Using local .env test token");
+  return cachedToken as string;
+}
+
+
 
   return fetchNewToken();
 }
@@ -100,7 +103,10 @@ export async function searchImages(query: string, retries = 10, delayMs = 1500):
   console.log(`[Search] Searching for: "${query}"`);
 
   const isLocal = window.location.hostname === "localhost";
-  const endpoint = isLocal ? `${GATEWAY_BASE}/search-unsplash` : "/api/search-unsplash";
+  const endpoint = isLocal
+  ? `${GATEWAY_BASE}/search-unsplash`
+  : "https://unsplash-plugin.vercel.app/api/search-unsplash";
+
 
   const headers: Record<string, string> = {
     accept: "application/json",
@@ -123,6 +129,7 @@ export async function searchImages(query: string, retries = 10, delayMs = 1500):
     console.log("[Search] Still processing, retrying...");
     await new Promise((r) => setTimeout(r, delayMs));
     return searchImages(query, retries - 1, delayMs);
+    
   }
 
   if (!res.ok) {
@@ -140,6 +147,9 @@ export async function searchImages(query: string, retries = 10, delayMs = 1500):
     AuthorAttributionUrl: item.authorAttributionUrl ?? item.AuthorAttributionUrl ?? "",
   }));
 
+  console.log("Mapped items:", mapped);
+
+
   console.log(`[Search] Found ${mapped.length} images`);
   return { data: mapped };
 }
@@ -152,7 +162,10 @@ export async function registerDownload(url: string) {
   console.log("[Download] Registering:", url);
 
   const isLocal = window.location.hostname === "localhost";
-  const endpoint = isLocal ? `${GATEWAY_BASE}/download-unsplash` : "/api/download-unsplash";
+  const endpoint = isLocal
+  ? `${GATEWAY_BASE}/download-unsplash`
+  : "https://unsplash-plugin.vercel.app/api/download-unsplash";
+
 
   const headers: Record<string, string> = {
     accept: "application/json",
