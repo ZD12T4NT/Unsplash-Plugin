@@ -1,6 +1,13 @@
 // search-unsplash.js
 
 export default async function handler(req, res) {
+
+    // --- CORS Fix ---
+  res.setHeader("Access-Control-Allow-Origin", "https://cms.wearevennture.co.uk");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  if (req.method === "OPTIONS") return res.status(200).end();
+
   try {
     const { prompt } = req.body;
     if (!prompt) return res.status(400).json({ error: "Missing prompt" });
