@@ -42,12 +42,27 @@ export default async function handler(req, res) {
     const selfBase = buildSelfBase(req);
 
     const authRes = await fetch(`${selfBase}/api/get-venn-jwt`, {
-      headers: { "X-Venn-Client-Origin": clientOrigin },
-    });
-    const authJson = await authRes.json();
-    const token = authJson && authJson.token;
-    if (!token) return res.status(500).json({ error: "Failed to get JWT" });
+    headers: { "X-Venn-Client-Origin": clientOrigin },
+  });
 
+    if (!authRes.ok) {
+      const text = await authRes.text().catch(() => "");
+      return res.status(502).json({
+        error: "Failed to get JWT (proxy)",
+        status: authRes.status,
+        bodyPreview: text.slice(0, 500),
+        clientOrigin,
+      });
+    }
+    const authJson = await authRes.json().catch(() => ({}));
+    const token = authJson && authJson.token;
+    if (!token) {
+      return res.status(502).json({
+        error: "JWT missing from get-venn-jwt",
+        authJsonPreview: JSON.stringify(authJson).slice(0, 500),
+        clientOrigin,
+      });
+    }
     const gwRes = await fetch(
       "https://gateway.wearevennture.co.uk/content-generation/search-unsplash",
       {
