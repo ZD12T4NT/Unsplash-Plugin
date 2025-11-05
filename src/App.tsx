@@ -111,14 +111,12 @@ export function App() {
  
   const [modalOpen, setModalOpen] = useState(false);
 
-  const stopAll = (e: React.SyntheticEvent) => {
-  e.preventDefault();
+ const stopBubble = (e: React.SyntheticEvent) => {
   e.stopPropagation();
   // @ts-ignore
   e.nativeEvent?.stopImmediatePropagation?.();
-  // @ts-ignore
-  (e as any).cancelBubble = true;
 };
+
 
   const [activeTab, setActiveTab] = useState<"presets" | "search">("search");
   const [searchTerm, setSearchTerm] = useState("");
@@ -266,12 +264,9 @@ const renderResults = () => (
         overflowY: "auto",
         transition: 'background 0.3s ease, color 0.3s ease',
       }}
-      onClick={stopAll}
-    onClickCapture={stopAll}
-    onMouseDown={stopAll}
-    onMouseDownCapture={stopAll}
-    onPointerDownCapture={stopAll}
-    onKeyDownCapture={stopAll}
+      onClick={stopBubble}
+      onMouseDown={stopBubble}
+      onPointerDown={stopBubble}
     >
 
             {/* Header */}
