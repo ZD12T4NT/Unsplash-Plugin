@@ -1,31 +1,44 @@
-export default async function handler(req, res) {
-  // --- CORS Fix ---
-  res.setHeader("Access-Control-Allow-Origin", "https://cms.wearevennture.co.uk");
+// /pages/api/get-venn-jwt.js
+
+function getHeader(req, name) {
+  const v = req.headers[name.toLowerCase()];
+  return Array.isArray(v) ? v[0] : v;
+}
+
+function isAllowedOrigin(origin) {
+  const allowList = [
+    /^https?:\/\/localhost(:\d+)?$/,
+    /^https:\/\/cms\.wearevennture\.co\.uk$/,
+    /^https:\/\/.*\.wearevennture\.co\.uk$/,
+  ];
+  return !!origin && allowList.some((rx) => rx.test(origin));
+}
+
+function applyCors(req, res) {
+  const origin = getHeader(req, "origin") || "";
+  res.setHeader("Access-Control-Allow-Origin", isAllowedOrigin(origin) ? origin : "null");
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Venn-Client-Origin");
+}
+
+export default async function handler(req, res) {
+  applyCors(req, res);
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
     const gatewayAuthUrl = "https://gateway.wearevennture.co.uk/auth";
 
-    // Always tell the gateway where this request came from
-    const referer =
-      process.env.NODE_ENV === "development"
-        ? req.headers.origin || "http://localhost:5173"
-        : "https://cms.wearevennture.co.uk";
-
-    console.log("[API] Fetching JWT from gateway:", gatewayAuthUrl);
-    console.log("[API] Using Referer:", referer);
+    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
+    if (!clientOrigin) return res.status(400).json({ error: "Missing client origin" });
 
     const gwRes = await fetch(gatewayAuthUrl, {
       method: "GET",
-      headers: { Referer: referer },
+      headers: { Referer: clientOrigin },
     });
 
-    // Gateway didn’t respond OK — capture its raw HTML
     if (!gwRes.ok) {
       const text = await gwRes.text();
-      console.error("[API] Gateway auth failed:", gwRes.status, text.slice(0, 300));
       return res.status(gwRes.status).json({
         error: "Gateway auth failed",
         status: gwRes.status,
@@ -33,34 +46,22 @@ export default async function handler(req, res) {
       });
     }
 
-    // Try to parse JSON safely
-    const text = await gwRes.text();
+    const raw = await gwRes.text();
     let json;
     try {
-      json = JSON.parse(text);
+      json = JSON.parse(raw);
     } catch {
-      console.error("[API] Gateway returned non-JSON:", text.slice(0, 200));
-      return res.status(502).json({
-        error: "Gateway returned invalid JSON",
-        bodyPreview: text.slice(0, 200),
-      });
+      return res.status(502).json({ error: "Gateway returned invalid JSON", bodyPreview: raw.slice(0, 200) });
     }
 
-    // Validate token
-    if (!json.token || typeof json.token !== "string") {
-      console.error("[API] No valid token in response:", json);
+    const token = json && json.token;
+    if (typeof token !== "string" || !token) {
       return res.status(500).json({ error: "Token missing or invalid" });
     }
 
-    console.log("[API] Token retrieved successfully");
-    return res.status(200).json({ token: json.token });
-
+    return res.status(200).json({ token });
   } catch (err) {
-    console.error("[API] Error fetching JWT:", err);
-    return res.status(500).json({
-      error: "Internal server error",
-      message: err.message,
-      stack: err.stack,
-    });
+    console.error("[API] get-venn-jwt error:", err && err.message ? err.message : err);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
