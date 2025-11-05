@@ -27,7 +27,7 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") return res.status(200).end();
 
   try {
-    const gatewayAuthUrl = "https://gateway.wearevennture.co.uk/auth";
+    const gatewayAuthUrl = "https://gateway.dev.wearevennture.co.uk/auth";
 const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
 if (!clientOrigin) return res.status(400).json({ error: "Missing client origin" });
 
@@ -39,7 +39,7 @@ let gwRes = await fetch(gatewayAuthUrl, {
 
 // Fallback attempt if not allowed
 if (!gwRes.ok && (gwRes.status === 401 || gwRes.status === 403)) {
-  const cmsReferer = "https://cms.wearevennture.co.uk";
+  const cmsReferer = "https://cms.dev.wearevennture.co.uk";
   console.warn("[API] Gateway auth rejected client origin, retrying with CMS referer:", cmsReferer);
   gwRes = await fetch(gatewayAuthUrl, {
     method: "GET",

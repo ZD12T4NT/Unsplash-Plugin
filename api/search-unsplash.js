@@ -78,7 +78,7 @@ export default async function handler(req, res) {
 
     // --- Call the gateway search endpoint ---
     const gwRes = await fetch(
-      "https://gateway.wearevennture.co.uk/content-generation/search-unsplash",
+      "https://gateway.dev.wearevennture.co.uk/content-generation/search-unsplash",
       {
         method: "POST",
         headers: {
