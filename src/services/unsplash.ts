@@ -23,7 +23,31 @@ export interface UnsplashSearchResponseSetDto {
 // All API calls go through backend in production.
 // Localhost can still hit the gateway directly for dev testing.
 const GATEWAY_BASE = "https://gateway.wearevennture.co.uk/content-generation";
-// const API_BASE = ""; relative => /api/* routes
+// Your deployed API base (adjust if you want to use relative /api instead)
+const VERCEL_API_BASE = "https://unsplash-plugin.vercel.app/api"; 
+
+// -------------------------
+// Helpers
+// -------------------------
+// jQuery -> $('.staging-link a').prop('href')
+// Vanilla:
+function getClientOrigin(): string {
+  const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
+  if (href) {
+    try { return new URL(href).origin; } catch { /* fall through */ }
+  }
+  // fallback to current page (CMS) if staging link not present
+  return window.location.origin;
+}
+
+function commonApiHeaders(extra: Record<string, string> = {}) {
+  return {
+    "Content-Type": "application/json",
+    accept: "application/json",
+    "X-Venn-Client-Origin": getClientOrigin(),   // <--- IMPORTANT
+    ...extra,
+  };
+}
 
 // -------------------------
 // JWT Handling
@@ -45,12 +69,17 @@ async function fetchNewToken(): Promise<string> {
   const isLocal = window.location.hostname === "localhost";
   const currentOrigin = window.location.origin;
 
-  const authUrl = isLocal ? `${GATEWAY_BASE.replace("/content-generation", "")}/auth` : "/api/get-venn-jwt";
+  const authUrl = isLocal
+    ? `${GATEWAY_BASE.replace("/content-generation", "")}/auth`
+    : "/api/get-venn-jwt"; // relative to same host if you serve the API together
+
   console.log(`[JWT] Fetching new token from: ${authUrl}`);
 
   const res = await fetch(authUrl, {
     method: "GET",
-    headers: isLocal ? { Referer: currentOrigin } : {},
+    headers: isLocal
+      ? { Referer: currentOrigin } // gateway needs referer when called direct
+      : { "X-Venn-Client-Origin": getClientOrigin() }, // backend will forward as Referer
   });
 
   if (!res.ok) throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
@@ -83,14 +112,12 @@ export async function getJwtToken(): Promise<string> {
     return cachedToken;
 
   // optional local .env fallback
-if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localhost") {
-  cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
-  tokenExpiry = null;
-  console.log("[JWT] Using local .env test token");
-  return cachedToken as string;
-}
-
-
+  if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localhost") {
+    cachedToken = import.meta.env.VITE_TEST_JWT_TOKEN;
+    tokenExpiry = null;
+    console.log("[JWT] Using local .env test token");
+    return cachedToken as string;
+  }
 
   return fetchNewToken();
 }
@@ -98,18 +125,12 @@ if (import.meta.env.VITE_TEST_JWT_TOKEN && window.location.hostname === "localho
 // -------------------------
 // Search Images
 // -------------------------
-
-const VERCEL_API_BASE = "https://unsplash-plugin.vercel.app/api";
-
 export async function searchImages(query: string): Promise<UnsplashSearchResponseSetDto> {
   if (!query) throw new Error("[Search] Missing query");
 
   const res = await fetch(`${VERCEL_API_BASE}/search-unsplash`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      accept: "application/json",
-    },
+    headers: commonApiHeaders(),
     body: JSON.stringify({ prompt: query }),
   });
 
@@ -130,7 +151,6 @@ export async function searchImages(query: string): Promise<UnsplashSearchRespons
   };
 }
 
-
 // -------------------------
 // Register Download
 // -------------------------
@@ -139,12 +159,10 @@ export async function registerDownload(url: string) {
 
   const res = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", accept: "application/json" },
+    headers: commonApiHeaders(),
     body: JSON.stringify({ url }),
   });
 
   if (!res.ok) throw new Error("Failed to register download");
-
   return res.json();
 }
-
