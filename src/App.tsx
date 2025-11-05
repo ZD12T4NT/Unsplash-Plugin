@@ -44,6 +44,7 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
         />
 
         <button
+        type="button"
           onKeyDown={(e) => e.stopPropagation()}
           onClick={async (e) => {
             e.preventDefault();
@@ -106,11 +107,19 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
   );
 }
 
-
-
 export function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+ 
   const [modalOpen, setModalOpen] = useState(false);
+
+  const stopAll = (e: React.SyntheticEvent) => {
+  e.preventDefault();
+  e.stopPropagation();
+  // @ts-ignore
+  e.nativeEvent?.stopImmediatePropagation?.();
+  // @ts-ignore
+  (e as any).cancelBubble = true;
+};
+
   const [activeTab, setActiveTab] = useState<"presets" | "search">("search");
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState<UnsplashSearchResponseItemDto[]>([]);
@@ -172,15 +181,15 @@ const renderResults = () => (
       listStyle: "none",
       padding: 0,
       marginTop: "1.5rem",
-      columnCount: 2,              // create a 2-column masonry layout
-      columnGap: "2rem",           // space between columns
+      columnCount: 2, 
+      columnGap: "2rem",      
     }}
   >
     {results.map((img, index) => (
       <li
         key={index}
         style={{
-          breakInside: "avoid",     // prevent images from splitting across columns
+          breakInside: "avoid",    
           marginBottom: "1rem",
         }}
       >
@@ -207,6 +216,7 @@ const renderResults = () => (
     <>
       {/* Open modal button */}
       <button
+      type="button"
          onClick={(e) => {
           e.preventDefault();
           e.stopPropagation(); // <-- prevents CMS from closing
@@ -239,12 +249,14 @@ const renderResults = () => (
       alignItems: "center",
       zIndex: 1000,
     }}
-    onClick={() => setModalOpen(false)} // clicking outside closes modal
+  onClick={(e) => {
+    if (e.target === e.currentTarget) setModalOpen(false); // click outside content only
+  }}
   >
     <div
       style={{
-        background: theme === 'light' ? '#fff' : '#121212',
-        color: theme === 'light' ? '#000' : '#f5f5f5',
+        background: '#fff',
+        color: '#000' ,
         minHeight: "30rem",
         width: "40%",
         borderRadius: "10px",
@@ -254,28 +266,13 @@ const renderResults = () => (
         overflowY: "auto",
         transition: 'background 0.3s ease, color 0.3s ease',
       }}
-        onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
-      onClick={(e) => e.stopPropagation()} // stops clicks inside from closing modal
+      onClick={stopAll}
+    onClickCapture={stopAll}
+    onMouseDown={stopAll}
+    onMouseDownCapture={stopAll}
+    onPointerDownCapture={stopAll}
+    onKeyDownCapture={stopAll}
     >
-
-              <button
-                onClick={(e) => {
-                  e.stopPropagation(); // Prevent CMS from closing modal
-                  setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
-                }}
-                onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
-                style={{
-                  marginBottom: '1rem',
-                  padding: '0.5rem 1rem',
-                  borderRadius: '0.3rem',
-                  border: '1px solid #ccc',
-                  background: theme === 'light' ? '#000' : '#fff',
-                  color: theme === 'light' ? '#fff' : '#000',
-                  cursor: 'pointer',
-                }} 
-              >
-                {theme === 'light' ? 'Dark' : 'Light'}
-              </button>
 
             {/* Header */}
             <div
@@ -301,6 +298,7 @@ const renderResults = () => (
               </h2>
 
               <button
+              type="button"
                 onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation();
@@ -316,13 +314,14 @@ const renderResults = () => (
                   justifyContent: "center",
                 }}
               >
-                <X style={{color: theme === 'light' ? '#000' : '#f5f5f5'}} size={20} />
+                <X style={{color: '#000' }} size={20} />
               </button>
             </div>
 
             {/* Tabs */}
             <div style={{ display: "flex", gap: "1rem", marginBottom: "2rem" }}>
               <button
+              type="button"
                 onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation();
@@ -347,6 +346,7 @@ const renderResults = () => (
               </button>
 
               <button
+              type="button"
                 onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => {
                   e.stopPropagation(); 
@@ -389,6 +389,7 @@ const renderResults = () => (
                 }}
               />
               <button
+              type="button"
                 onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                 onClick={(e) => { 
                     e.preventDefault();
@@ -401,8 +402,8 @@ const renderResults = () => (
                   gap: "0.4rem",
                   padding: "1rem 2rem",
                   borderRadius: "0.3rem",
-                  background: theme === 'light' ? '#121212' : '#fff',
-                  color: theme === 'light' ? '#fff' : '#000',
+                  background: '#121212',
+                  color: '#fff' ,
                   border: "none",
                   cursor: "pointer",
                   fontWeight: "normal",
@@ -418,6 +419,7 @@ const renderResults = () => (
               <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "2rem", paddingBottom: "1.5rem",borderBottom: "1px solid #ccc",}}>
                 {PRESETS.map((preset) => (
                   <button
+                  type="button"
                     onKeyDown={(e) => e.stopPropagation()} // Optional: prevent keyboard events from closing
                     key={preset}
                     onClick={(e) => {
@@ -459,6 +461,7 @@ const renderResults = () => (
                 <div style={{ display: "flex", gap: "0.5rem" }}>
                   {["photos", "illustrations"].map((type) => (
                     <button
+                    type="button"
                       key={type}
                       onClick={(e) => {
                         e.preventDefault();
@@ -524,6 +527,7 @@ const renderResults = () => (
                 {/* Mock “View More” */}
                 <div style={{ textAlign: "center", marginTop: "1rem" }}>
                     <button
+                    type="button"
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation(); // Prevent CMS from closing modal
