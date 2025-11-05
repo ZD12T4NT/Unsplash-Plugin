@@ -22,7 +22,7 @@ export interface UnsplashSearchResponseSetDto {
 // -------------------------
 // All API calls go through backend in production.
 // Localhost can still hit the gateway directly for dev testing.
-const GATEWAY_BASE = "https://gateway.wearevennture.co.uk/content-generation";
+const GATEWAY_BASE = "https://gateway.dev.wearevennture.co.uk/content-generation";
 // Your deployed API base (adjust if you want to use relative /api instead)
 const VERCEL_API_BASE = "https://unsplash-plugin.vercel.app/api"; 
 

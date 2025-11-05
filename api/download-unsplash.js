@@ -76,7 +76,7 @@ export default async function handler(req, res) {
     }
 
     // --- Call the gateway download endpoint ---
-    const gatewayUrl = "https://gateway.wearevennture.co.uk/content-generation/download-unsplash";
+    const gatewayUrl = "https://gateway.dev.wearevennture.co.uk/content-generation/download-unsplash";
     const gwRes = await fetch(gatewayUrl, {
       method: "POST",
       headers: {
