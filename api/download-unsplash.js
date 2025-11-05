@@ -41,13 +41,41 @@ export default async function handler(req, res) {
     const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
     const selfBase = buildSelfBase(req);
 
+    // --- Get JWT (forward client origin) with better error surfacing ---
     const authRes = await fetch(`${selfBase}/api/get-venn-jwt`, {
       headers: { "X-Venn-Client-Origin": clientOrigin },
     });
-    const authJson = await authRes.json();
-    const token = authJson && authJson.token;
-    if (!token) return res.status(500).json({ error: "Failed to get JWT" });
 
+    if (!authRes.ok) {
+      const text = await authRes.text().catch(() => "");
+      return res.status(502).json({
+        error: "Failed to get JWT (proxy)",
+        status: authRes.status,
+        bodyPreview: text.slice(0, 500),
+        clientOrigin,
+      });
+    }
+
+    let authJson = {};
+    try {
+      authJson = await authRes.json();
+    } catch {
+      return res.status(502).json({
+        error: "Invalid JSON from get-venn-jwt",
+        clientOrigin,
+      });
+    }
+
+    const token = authJson && authJson.token;
+    if (!token) {
+      return res.status(502).json({
+        error: "JWT missing from get-venn-jwt",
+        authJsonPreview: JSON.stringify(authJson).slice(0, 500),
+        clientOrigin,
+      });
+    }
+
+    // --- Call the gateway download endpoint ---
     const gatewayUrl = "https://gateway.wearevennture.co.uk/content-generation/download-unsplash";
     const gwRes = await fetch(gatewayUrl, {
       method: "POST",
@@ -60,8 +88,11 @@ export default async function handler(req, res) {
     });
 
     if (!gwRes.ok) {
-      const text = await gwRes.text();
-      return res.status(gwRes.status).json({ error: "Download failed", bodyPreview: text.slice(0, 300) });
+      const text = await gwRes.text().catch(() => "");
+      return res.status(gwRes.status).json({
+        error: "Download failed",
+        bodyPreview: text.slice(0, 500),
+      });
     }
 
     const json = await gwRes.json();

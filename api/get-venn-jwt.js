@@ -28,38 +28,47 @@ export default async function handler(req, res) {
 
   try {
     const gatewayAuthUrl = "https://gateway.wearevennture.co.uk/auth";
+const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
+if (!clientOrigin) return res.status(400).json({ error: "Missing client origin" });
 
-    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
-    if (!clientOrigin) return res.status(400).json({ error: "Missing client origin" });
+// First attempt: use the client/staging site as Referer
+let gwRes = await fetch(gatewayAuthUrl, {
+  method: "GET",
+  headers: { Referer: clientOrigin, accept: "application/json" },
+});
 
-    const gwRes = await fetch(gatewayAuthUrl, {
-      method: "GET",
-      headers: { Referer: clientOrigin },
-    });
+// Fallback attempt if not allowed
+if (!gwRes.ok && (gwRes.status === 401 || gwRes.status === 403)) {
+  const cmsReferer = "https://cms.wearevennture.co.uk";
+  console.warn("[API] Gateway auth rejected client origin, retrying with CMS referer:", cmsReferer);
+  gwRes = await fetch(gatewayAuthUrl, {
+    method: "GET",
+    headers: { Referer: cmsReferer, accept: "application/json" },
+  });
+}
 
-    if (!gwRes.ok) {
-      const text = await gwRes.text();
-      return res.status(gwRes.status).json({
-        error: "Gateway auth failed",
-        status: gwRes.status,
-        bodyPreview: text.slice(0, 300),
-      });
-    }
+if (!gwRes.ok) {
+  const text = await gwRes.text();
+  return res.status(gwRes.status).json({
+    error: "Gateway auth failed",
+    status: gwRes.status,
+    bodyPreview: text.slice(0, 500),
+    triedReferer: clientOrigin,
+  });
+}
 
-    const raw = await gwRes.text();
-    let json;
-    try {
-      json = JSON.parse(raw);
-    } catch {
-      return res.status(502).json({ error: "Gateway returned invalid JSON", bodyPreview: raw.slice(0, 200) });
-    }
+const raw = await gwRes.text();
+let json;
+try { json = JSON.parse(raw); }
+catch {
+  return res.status(502).json({ error: "Gateway returned invalid JSON", bodyPreview: raw.slice(0, 500) });
+}
+const token = json && json.token;
+if (typeof token !== "string" || !token) {
+  return res.status(500).json({ error: "Token missing or invalid", jsonPreview: JSON.stringify(json).slice(0, 500) });
+}
+return res.status(200).json({ token });
 
-    const token = json && json.token;
-    if (typeof token !== "string" || !token) {
-      return res.status(500).json({ error: "Token missing or invalid" });
-    }
-
-    return res.status(200).json({ token });
   } catch (err) {
     console.error("[API] get-venn-jwt error:", err && err.message ? err.message : err);
     return res.status(500).json({ error: "Internal server error" });
