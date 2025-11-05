@@ -38,12 +38,14 @@ export default async function handler(req, res) {
     const prompt = body.prompt;
     if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
+    // Origin we send from the browser (client/staging)
     const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
     const selfBase = buildSelfBase(req);
 
+    // --- Get JWT (forward client origin) with proper error surfacing ---
     const authRes = await fetch(`${selfBase}/api/get-venn-jwt`, {
-    headers: { "X-Venn-Client-Origin": clientOrigin },
-  });
+      headers: { "X-Venn-Client-Origin": clientOrigin },
+    });
 
     if (!authRes.ok) {
       const text = await authRes.text().catch(() => "");
@@ -54,7 +56,17 @@ export default async function handler(req, res) {
         clientOrigin,
       });
     }
-    const authJson = await authRes.json().catch(() => ({}));
+
+    let authJson = {};
+    try {
+      authJson = await authRes.json();
+    } catch {
+      return res.status(502).json({
+        error: "Invalid JSON from get-venn-jwt",
+        clientOrigin,
+      });
+    }
+
     const token = authJson && authJson.token;
     if (!token) {
       return res.status(502).json({
@@ -63,6 +75,8 @@ export default async function handler(req, res) {
         clientOrigin,
       });
     }
+
+    // --- Call the gateway search endpoint ---
     const gwRes = await fetch(
       "https://gateway.wearevennture.co.uk/content-generation/search-unsplash",
       {
@@ -77,8 +91,11 @@ export default async function handler(req, res) {
     );
 
     if (!gwRes.ok) {
-      const text = await gwRes.text();
-      return res.status(gwRes.status).json({ error: "Search failed", bodyPreview: text.slice(0, 300) });
+      const text = await gwRes.text().catch(() => "");
+      return res.status(gwRes.status).json({
+        error: "Search failed (gateway)",
+        bodyPreview: text.slice(0, 500),
+      });
     }
 
     const json = await gwRes.json();
