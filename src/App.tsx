@@ -15,7 +15,7 @@ const PRESETS = [
 
 
 function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
-  const [hover, setHover] = useState(false);
+  const [hover] = useState(false);
 
   return (
     <div style={{ marginBottom: 0 }}>
