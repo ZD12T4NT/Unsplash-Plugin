@@ -19,124 +19,98 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
 
   return (
     <div style={{ marginBottom: 0 }}>
-      <div
-        style={{
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "0.3rem",
-          cursor: "pointer",
-        }}
-        onMouseEnter={() => setHover(true)}
-        onMouseLeave={() => setHover(false)}
-      >
-        <img
-          loading="lazy"
-          src={img.ThumbnailImageUrl}
-          alt={`Photo by ${img.AuthorAttributionName}`}
-          style={{
-            width: "100%",
-            height: "auto",
-            display: "block",
-            objectFit: "cover",
-            transform: hover ? "scale(1.05)" : "scale(1)",
-            transition: "transform 0.3s ease",
-          }}
-        />
+    <div className="unsplash-card" style={{ position: "relative" }}>
+  <img src={img.ThumbnailImageUrl} alt="" style={{ display: "block", width: "100%", height: "auto" }} />
 
-        <button
-  type="button"
-  onKeyDown={(e) => e.stopPropagation()}
-  onClick={async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    (e as any).stopImmediatePropagation?.();
+  {/* overlay that fades in */}
+  <div
+    className="unsplash-overlay"
+    style={{
+      position: "absolute",
+      inset: 0,
+      background: "rgba(0,0,0,0.45)",
+      opacity: hover ? 1 : 0,
+      transition: "opacity 0.25s ease",
+      pointerEvents: "none", // overlay doesn't block clicks
+    }}
+  />
 
-    const btn = e.currentTarget as HTMLButtonElement;
-    btn.disabled = true;
+  {/* the actual button (not stretched) */}
+  <button
+    type="button"
+    onKeyDown={(e) => e.stopPropagation()}
+    onClick={async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      (e as any).stopImmediatePropagation?.();
 
-    try {
-      // 1) Import to your media/CDN
+      // import
       const reg = await registerDownload(img.DownloadLocation);
-
-      // 2) Extract ID (+ a usable CDN url if provided)
       const payload = (reg && (reg.data ?? reg)) || {};
       const assetId =
         payload.id || payload.Id || payload.mediaId || payload.MediaId || payload.assetId || payload.AssetId;
-      const cdnUrl = payload.url || payload.Url || payload.src || payload.sourceUrl;
 
       if (!assetId) {
         console.error("[VENN] registerDownload returned no asset id:", reg);
-        alert("Could not import image (no asset id).");
+        alert("Import didn’t return a media ID. Check /api/download-unsplash response.");
         return;
       }
 
-      // 3) Find CMS elements
+      // write to CMS input
       const container = document.querySelector<HTMLElement>('.dev-module-field[data-module-fieldid="Image"]');
       const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
       const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
       const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
 
-      // 4) Write the **asset ID** (NOT the Unsplash URL)
       if (hiddenInput) {
         hiddenInput.value = String(assetId);
         hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
         hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
       } else {
-        // Fallback: try by 'name' if the field is hashed (e.g., XQr7szjAUik=)
         const hashedByName = document.querySelector<HTMLInputElement>('[name="XQr7szjAUik="]');
         if (hashedByName) {
           hashedByName.value = String(assetId);
           hashedByName.dispatchEvent(new Event("input", { bubbles: true }));
           hashedByName.dispatchEvent(new Event("change", { bubbles: true }));
-        } else {
-          console.warn("[VENN] Image hidden input not found (.HashedImageID or [name='XQr7szjAUik='])");
         }
       }
 
-      // 5) Alt/label
       if (altInput) {
         altInput.value = `Photo by ${img.AuthorAttributionName}`;
         altInput.dispatchEvent(new Event("input", { bubbles: true }));
         altInput.dispatchEvent(new Event("change", { bubbles: true }));
       }
 
-      // 6) Preview (prefer imported CDN url, fallback to thumbnail)
       if (draggingArea) {
-        draggingArea.style.backgroundImage = `url(${cdnUrl || img.ThumbnailImageUrl})`;
+        const cdnUrl = payload.url || payload.Url || payload.src || payload.sourceUrl || img.ThumbnailImageUrl;
+        draggingArea.style.backgroundImage = `url(${cdnUrl})`;
       }
 
-      console.log("[VENN] Imported & injected asset id into CMS field", { assetId, cdnUrl });
-    } catch (err) {
-      console.error(err);
-      alert("Failed to import image. Please try again.");
-    } finally {
-      btn.disabled = false;
-    }
-  }}
-  style={{
+      console.log("[VENN] Injected asset id into CMS field");
+    }}
+    style={{
       position: "absolute",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    background: hover ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.45)",
-    color: "#fff",
-    border: "none",
-    cursor: "pointer",
-    opacity: hover ? 1 : 0,
-    transition: "opacity 0.25s ease, background 0.25s ease",
-    fontSize: "14px",
-    fontWeight: 500,
-    pointerEvents: hover ? "auto" : "none", // prevents hover ghost clicks
-  }}
->
-  Use this image
-</button>
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      pointerEvents: "auto", // clickable even when overlay is pointer-none
+      background: "#000",    // solid black button
+      color: "#fff",
+      border: "none",
+      padding: "10px 14px",
+      borderRadius: "8px",
+      fontSize: "13px",
+      fontWeight: 600,
+      boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+      opacity: hover ? 1 : 0,
+      transition: "opacity 0.25s ease, transform 0.15s ease",
+    }}
+    onMouseEnter={() => {/* set hover true in parent if you manage hover state */}}
+  >
+    Use this image
+  </button>
+</div>
 
-      </div>
 
       <p style={{ fontSize: 12, marginTop: 4 }}>
         Photo by{" "}
