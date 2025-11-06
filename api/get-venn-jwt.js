@@ -29,23 +29,27 @@ export default async function handler(req, res) {
   try {
     const gatewayAuthUrl = "https://gateway.dev.wearevennture.co.uk/auth";
 const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
+
 if (!clientOrigin) return res.status(400).json({ error: "Missing client origin" });
 
-// First attempt: use the client/staging site as Referer
-let gwRes = await fetch(gatewayAuthUrl, {
-  method: "GET",
-  headers: { Referer: clientOrigin, accept: "application/json" },
-});
+    // Send explicit identity via multiple headers – different stacks validate different ones
+    const url = new URL(clientOrigin);
+    const hostOnly = url.host; // e.g. client.example.com
+    const gwRes = await fetch(gatewayAuthUrl, {
+      method: "GET",
+      headers: {
+        // Common checks
+        Referer: clientOrigin,
+        Origin: clientOrigin,
+        // Pass through as a stable, explicit signal
+        "X-Venn-Client-Origin": clientOrigin,
+        // Some gateways/proxies look at these:
+        "X-Forwarded-Proto": url.protocol.replace(":", ""), // http or https
+        "X-Forwarded-Host": hostOnly,
+        accept: "application/json",
+     },
+    });
 
-// Fallback attempt if not allowed
-if (!gwRes.ok && (gwRes.status === 401 || gwRes.status === 403)) {
-  const cmsReferer = "https://cms.dev.wearevennture.co.uk";
-  console.warn("[API] Gateway auth rejected client origin, retrying with CMS referer:", cmsReferer);
-  gwRes = await fetch(gatewayAuthUrl, {
-    method: "GET",
-    headers: { Referer: cmsReferer, accept: "application/json" },
-  });
-}
 
 if (!gwRes.ok) {
   const text = await gwRes.text();
@@ -53,7 +57,8 @@ if (!gwRes.ok) {
     error: "Gateway auth failed",
     status: gwRes.status,
     bodyPreview: text.slice(0, 500),
-    triedReferer: clientOrigin,
+       triedReferer: clientOrigin,
+      note: "No CMS fallback used so you can fix allowlist/validation on the gateway.",
   });
 }
 

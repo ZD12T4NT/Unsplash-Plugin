@@ -71,15 +71,17 @@ async function fetchNewToken(): Promise<string> {
 
   const authUrl = isLocal
     ? `${GATEWAY_BASE.replace("/content-generation", "")}/auth`
-    : "/api/get-venn-jwt"; // relative to same host if you serve the API together
+    : "/api/get-venn-jwt";
 
   console.log(`[JWT] Fetching new token from: ${authUrl}`);
 
   const res = await fetch(authUrl, {
     method: "GET",
     headers: isLocal
-      ? { Referer: currentOrigin } // gateway needs referer when called direct
-      : { "X-Venn-Client-Origin": getClientOrigin() }, // backend will forward as Referer
+      // Local → hitting gateway directly: send BOTH Referer and Origin
+      ? { Referer: currentOrigin, Origin: currentOrigin }
+      // Prod/staging → hit your backend: send the explicit client origin so the server can forward it
+      : { "X-Venn-Client-Origin": getClientOrigin() },
   });
 
   if (!res.ok) throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
@@ -101,6 +103,7 @@ async function fetchNewToken(): Promise<string> {
 
   return token;
 }
+
 
 /**
  * Get JWT from cache, refresh if expired.

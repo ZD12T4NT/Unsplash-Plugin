@@ -77,12 +77,15 @@ export default async function handler(req, res) {
 
     // --- Call the gateway download endpoint ---
     const gatewayUrl = "https://gateway.dev.wearevennture.co.uk/content-generation/download-unsplash";
-    const gwRes = await fetch(gatewayUrl, {
+  const gwRes = await fetch(gatewayUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         accept: "application/json",
         Authorization: `Bearer ${token}`,
+             "X-Venn-Client-Origin": clientOrigin,
+     Origin: clientOrigin,
+     Referer: clientOrigin,
       },
       body: JSON.stringify({ url }),
     });
