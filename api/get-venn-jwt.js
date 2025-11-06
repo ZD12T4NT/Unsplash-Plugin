@@ -98,7 +98,9 @@ export default async function handler(req, res) {
         .json({ error: "Gateway returned invalid JSON", bodyPreview: raw.slice(0, 500) });
     }
 
-    const token = json && (json.token || json.Token);
+const token =
+(json && (json.token || json.Token || json.jwt || json.JWT)) ??
+(json.data && (json.data.token || json.data.jwt));
     if (typeof token !== "string" || !token) {
       return res.status(502).json({
         error: "Token missing or invalid",
