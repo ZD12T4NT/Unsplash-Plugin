@@ -5,13 +5,24 @@ function getHeader(req, name) {
   return Array.isArray(v) ? v[0] : v;
 }
 
+function parseCsv(str = "") {
+  return str
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 function isAllowedOrigin(origin) {
+  if (!origin) return false;
+  const allowedExact = parseCsv(process.env.ALLOWED_ORIGINS_CSV || "");
+  if (allowedExact.length && allowedExact.includes(origin)) return true;
+
   const allowList = [
     /^https?:\/\/localhost(:\d+)?$/,
     /^https:\/\/cms\.wearevennture\.co\.uk$/,
     /^https:\/\/.*\.wearevennture\.co\.uk$/,
   ];
-  return !!origin && allowList.some((rx) => rx.test(origin));
+  return allowList.some((rx) => rx.test(origin));
 }
 
 function applyCors(req, res) {
@@ -19,7 +30,10 @@ function applyCors(req, res) {
   res.setHeader("Access-Control-Allow-Origin", isAllowedOrigin(origin) ? origin : "null");
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Venn-Client-Origin");
+  res.setHeader(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Venn-Client-Origin"
+  );
 }
 
 function buildSelfBase(req) {
@@ -32,18 +46,20 @@ function buildSelfBase(req) {
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === "OPTIONS") return res.status(200).end();
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
     const body = req.body || {};
     const prompt = body.prompt;
     if (!prompt) return res.status(400).json({ error: "Missing prompt" });
 
-    // Origin we send from the browser (client/staging)
-    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
+    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "")
+      .trim();
     const selfBase = buildSelfBase(req);
 
-    // --- Get JWT (forward client origin) with proper error surfacing ---
+    // Get JWT from our own endpoint (which forwards identity to the gateway)
     const authRes = await fetch(`${selfBase}/api/get-venn-jwt`, {
+      method: "GET",
       headers: { "X-Venn-Client-Origin": clientOrigin },
     });
 
@@ -76,20 +92,23 @@ export default async function handler(req, res) {
       });
     }
 
-    // --- Call the gateway search endpoint ---
-    const gwRes = await fetch("https://gateway.dev.wearevennture.co.uk/content-generation/search-unsplash", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "application/json",
-          Authorization: `Bearer ${token}`,
-                "X-Venn-Client-Origin": clientOrigin, // <- helpful for gateway logs/validation
-     Origin: clientOrigin,                 // <- if gateway prefers Origin
-     Referer: clientOrigin,  
-        },
-        body: JSON.stringify({ prompt }),
-      }
-    );
+    const gatewayUrl =
+      process.env.GATEWAY_SEARCH_URL ||
+      "https://gateway.dev.wearevennture.co.uk/content-generation/search-unsplash";
+
+    const gwRes = await fetch(gatewayUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        accept: "application/json",
+        Authorization: `Bearer ${token}`,
+        // forward identity for logging/validation
+        "X-Venn-Client-Origin": clientOrigin,
+        Origin: clientOrigin,
+        Referer: clientOrigin,
+      },
+      body: JSON.stringify({ prompt }),
+    });
 
     if (!gwRes.ok) {
       const text = await gwRes.text().catch(() => "");
@@ -102,7 +121,7 @@ export default async function handler(req, res) {
     const json = await gwRes.json();
     return res.status(200).json(json);
   } catch (err) {
-    console.error("[API] search-unsplash error:", err && err.message ? err.message : err);
+    console.error("[API] search-unsplash error:", err?.message || err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
