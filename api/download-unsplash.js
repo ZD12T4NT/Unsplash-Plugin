@@ -50,11 +50,10 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const url = body.url;
-    if (!url) return res.status(400).json({ error: "Missing download URL" });
+    const downloadUrl = body.url; // <-- rename for clarity
+    if (!downloadUrl) return res.status(400).json({ error: "Missing download URL" });
 
-    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "")
-      .trim();
+    const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
     const selfBase = buildSelfBase(req);
 
     // Get JWT
@@ -77,13 +76,11 @@ export default async function handler(req, res) {
     try {
       authJson = await authRes.json();
     } catch {
-      return res.status(502).json({
-        error: "Invalid JSON from get-venn-jwt",
-        clientOrigin,
-      });
+      return res.status(502).json({ error: "Invalid JSON from get-venn-jwt", clientOrigin });
     }
 
-    const token = authJson && authJson.token;
+    // Accept both token and jwt
+    const token = authJson?.token || authJson?.Token || authJson?.jwt || authJson?.JWT;
     if (!token) {
       return res.status(502).json({
         error: "JWT missing from get-venn-jwt",
@@ -106,7 +103,7 @@ export default async function handler(req, res) {
         Origin: clientOrigin,
         Referer: clientOrigin,
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: downloadUrl }),
     });
 
     if (!gwRes.ok) {
@@ -117,10 +114,24 @@ export default async function handler(req, res) {
       });
     }
 
-    const json = await gwRes.json();
-    return res.status(200).json(json);
+    const json = await gwRes.json().catch(() => ({}));
+    // Normalize possible shapes
+    const data = json?.data ?? json ?? {};
+    const id =
+      data.id || data.Id || data.mediaId || data.MediaId || data.assetId || data.AssetId || null;
+    const cdnUrl = data.url || data.Url || data.src || data.sourceUrl || null;
+
+    if (!id) {
+      return res.status(502).json({
+        error: "Gateway did not return an asset id",
+        preview: JSON.stringify(json).slice(0, 500),
+      });
+    }
+
+    return res.status(200).json({ id, url: cdnUrl, raw: json });
   } catch (err) {
     console.error("[API] download-unsplash error:", err?.message || err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
