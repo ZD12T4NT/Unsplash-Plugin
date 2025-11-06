@@ -77,14 +77,15 @@ export default async function handler(req, res) {
     }
 
     // --- Call the gateway search endpoint ---
-    const gwRes = await fetch(
-      "https://gateway.dev.wearevennture.co.uk/content-generation/search-unsplash",
-      {
+    const gwRes = await fetch("https://gateway.dev.wearevennture.co.uk/content-generation/search-unsplash", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           accept: "application/json",
           Authorization: `Bearer ${token}`,
+                "X-Venn-Client-Origin": clientOrigin, // <- helpful for gateway logs/validation
+     Origin: clientOrigin,                 // <- if gateway prefers Origin
+     Referer: clientOrigin,  
         },
         body: JSON.stringify({ prompt }),
       }
