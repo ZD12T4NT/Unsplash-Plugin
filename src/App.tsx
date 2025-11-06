@@ -44,52 +44,98 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
         />
 
         <button
-        type="button"
-          onKeyDown={(e) => e.stopPropagation()}
-          onClick={async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
+  type="button"
+  onKeyDown={(e) => e.stopPropagation()}
+  onClick={async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e as any).stopImmediatePropagation?.();
 
-            await registerDownload(img.DownloadLocation);
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
 
-            const container = document.querySelector<HTMLElement>(
-              '.dev-module-field[data-module-fieldid="Image"]'
-            );
-            const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-            const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
-            const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
+    try {
+      // 1) Import to your media/CDN
+      const reg = await registerDownload(img.DownloadLocation);
 
-            if (hiddenInput) hiddenInput.value = img.DownloadLocation;
-            if (altInput) altInput.value = `Photo by ${img.AuthorAttributionName}`;
-            if (draggingArea) draggingArea.style.backgroundImage = `url(${img.ThumbnailImageUrl})`;
+      // 2) Extract ID (+ a usable CDN url if provided)
+      const payload = (reg && (reg.data ?? reg)) || {};
+      const assetId =
+        payload.id || payload.Id || payload.mediaId || payload.MediaId || payload.assetId || payload.AssetId;
+      const cdnUrl = payload.url || payload.Url || payload.src || payload.sourceUrl;
 
-            hiddenInput?.dispatchEvent(new Event("input", { bubbles: true }));
-            altInput?.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!assetId) {
+        console.error("[VENN] registerDownload returned no asset id:", reg);
+        alert("Could not import image (no asset id).");
+        return;
+      }
 
-            console.log('[VENN] Image injected into CMS field');
-          }}
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            background: "rgba(0,0,0,0.5)",
-            color: "#fff",
-            border: "none",
-            padding: "0.8rem 1.2rem",
-            borderRadius: "0.3rem",
-            opacity: hover ? 1 : 0,
-            cursor: "pointer",
-            fontSize: "12px",
-            transition: "opacity 0.3s ease",
-          }}
-        >
-          Use this image
-        </button>
+      // 3) Find CMS elements
+      const container = document.querySelector<HTMLElement>('.dev-module-field[data-module-fieldid="Image"]');
+      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
+      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
+      const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
+
+      // 4) Write the **asset ID** (NOT the Unsplash URL)
+      if (hiddenInput) {
+        hiddenInput.value = String(assetId);
+        hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
+        hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
+      } else {
+        // Fallback: try by 'name' if the field is hashed (e.g., XQr7szjAUik=)
+        const hashedByName = document.querySelector<HTMLInputElement>('[name="XQr7szjAUik="]');
+        if (hashedByName) {
+          hashedByName.value = String(assetId);
+          hashedByName.dispatchEvent(new Event("input", { bubbles: true }));
+          hashedByName.dispatchEvent(new Event("change", { bubbles: true }));
+        } else {
+          console.warn("[VENN] Image hidden input not found (.HashedImageID or [name='XQr7szjAUik='])");
+        }
+      }
+
+      // 5) Alt/label
+      if (altInput) {
+        altInput.value = `Photo by ${img.AuthorAttributionName}`;
+        altInput.dispatchEvent(new Event("input", { bubbles: true }));
+        altInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      // 6) Preview (prefer imported CDN url, fallback to thumbnail)
+      if (draggingArea) {
+        draggingArea.style.backgroundImage = `url(${cdnUrl || img.ThumbnailImageUrl})`;
+      }
+
+      console.log("[VENN] Imported & injected asset id into CMS field", { assetId, cdnUrl });
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import image. Please try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  }}
+  style={{
+      position: "absolute",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    background: hover ? "rgba(0,0,0,0.75)" : "rgba(0,0,0,0.45)",
+    color: "#fff",
+    border: "none",
+    cursor: "pointer",
+    opacity: hover ? 1 : 0,
+    transition: "opacity 0.25s ease, background 0.25s ease",
+    fontSize: "14px",
+    fontWeight: 500,
+    pointerEvents: hover ? "auto" : "none", // prevents hover ghost clicks
+  }}
+>
+  Use this image
+</button>
+
       </div>
 
       <p style={{ fontSize: 12, marginTop: 4 }}>

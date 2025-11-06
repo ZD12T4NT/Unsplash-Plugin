@@ -42,22 +42,19 @@ export function setCmsImageFieldNames(opts: { image: string; tag?: string }) {
 // -------------------------
 // Helpers
 // -------------------------
-// jQuery -> $('.staging-link a').prop('href')
-// Vanilla:
 function getClientOrigin(): string {
   const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
   if (href) {
     try { return new URL(href).origin; } catch { /* fall through */ }
   }
-  // fallback to current page (CMS) if staging link not present
-  return window.location.origin;
+  return window.location.origin; // fallback to CMS origin
 }
 
 function commonApiHeaders(extra: Record<string, string> = {}) {
   return {
     "Content-Type": "application/json",
     accept: "application/json",
-    "X-Venn-Client-Origin": getClientOrigin(),   // <--- IMPORTANT
+    "X-Venn-Client-Origin": getClientOrigin(),
     ...extra,
   };
 }
@@ -104,10 +101,8 @@ async function fetchNewToken(): Promise<string> {
   const res = await fetch(authUrl, {
     method: "GET",
     headers: isLocal
-      // Local → hitting gateway directly: send BOTH Referer and Origin
-      ? { Referer: currentOrigin, Origin: currentOrigin }
-      // Prod/staging → hit your backend: send the explicit client origin so the server can forward it
-      : { "X-Venn-Client-Origin": getClientOrigin() },
+      ? { Referer: currentOrigin, Origin: currentOrigin } // local direct → send both
+      : { "X-Venn-Client-Origin": getClientOrigin() },   // prod/staging → proxy forwards this
   });
 
   if (!res.ok) throw new Error(`[JWT] Failed to fetch token: ${res.status} ${res.statusText}`);
@@ -198,42 +193,33 @@ export async function registerDownload(url: string) {
 // -------------------------
 // Select image → import → write to CMS field
 // -------------------------
+function pickAssetId(reg: any): string | null {
+  const obj = reg?.data ?? reg ?? {};
+  return obj.id || obj.Id || obj.mediaId || obj.MediaId || obj.assetId || obj.AssetId || null;
+}
+
 /**
- * Call this when a user clicks/selects an Unsplash result.
- * It will:
- *  - register the download (imports into your media library)
- *  - write the returned asset ID into the CMS image field
- *  - write a helpful tag/label next to it
+ * Call this when an Unsplash card is selected.
+ * Ensures we save the *asset ID* into the CMS field (NOT the Unsplash URL).
  */
 export async function selectUnsplashImage(item: UnsplashSearchResponseItemDto): Promise<void> {
-  // 1) Import & register
+  // 1) Import to your media/CDN
   const reg = await registerDownload(item.DownloadLocation);
-  const asset = (reg && (reg.data ?? reg)) || {};
-  // tolerate a few common shapes for ID/URL
-  const assetId =
-    asset.id || asset.Id || asset.mediaId || asset.MediaId || asset.assetId || asset.AssetId;
-  const assetUrl = asset.url || asset.Url || asset.src || asset.sourceUrl;
+  const assetId = pickAssetId(reg);
 
   if (!assetId) {
-    console.error("[CMS] No asset id in registerDownload response:", reg);
-    throw new Error("[CMS] Missing asset id after import");
+    console.error("[CMS] registerDownload did not return an asset id:", reg);
+    throw new Error("Import succeeded but no asset id returned");
   }
 
-  // 2) Write the value the backend actually persists (ID, not Unsplash URL)
+  // 2) Write the ID to your CMS field
   const ok = writeField(CMS_IMAGE_FIELD_NAME, String(assetId));
-  if (!ok) {
-    // If field name changes per module, allow overriding via setCmsImageFieldNames()
-    throw new Error(`[CMS] Image field '${CMS_IMAGE_FIELD_NAME}' not found in the form`);
-  }
+  if (!ok) throw new Error(`[CMS] Field '${CMS_IMAGE_FIELD_NAME}' not found`);
 
-  // 3) Optional label/tag (purely for UI/readability)
-  const label = `Photo by ${item.AuthorAttributionName} (Unsplash)`;
-  writeField(CMS_IMAGE_TAG_FIELD_NAME, label);
+  // 3) Optional: write a nice tag/label
+  writeField(CMS_IMAGE_TAG_FIELD_NAME, `Photo by ${item.AuthorAttributionName} (Unsplash)`);
 
-  // (Optional) If your CMS wants alt text in a separate field, add another writeField here.
-
-  // Dev aid:
-  console.debug("[CMS] Wrote asset", { assetId, assetUrl, field: CMS_IMAGE_FIELD_NAME });
+  console.debug("[CMS] Saved image asset id to form", { field: CMS_IMAGE_FIELD_NAME, assetId });
 }
 
 /**
