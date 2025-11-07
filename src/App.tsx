@@ -59,6 +59,10 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
     });
   }
 
+  function getClientOrigin(): string {
+    throw new Error("Function not implemented.");
+  }
+
   return (
     <div style={{ marginBottom: 0 }}>
       <div className="unsplash-card" style={{ position: "relative" }}>
@@ -96,7 +100,7 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Venn-Client-Origin": window.location.origin,
+          "X-Venn-Client-Origin": getClientOrigin(),
         },
         body: JSON.stringify({ url: img.DownloadLocation }),
       });

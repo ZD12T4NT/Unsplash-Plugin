@@ -42,13 +42,28 @@ export function setCmsImageFieldNames(opts: { image: string; tag?: string }) {
 // -------------------------
 // Helpers
 // -------------------------
+// Robust client origin resolver.
+// Priority: data-attr > meta tag > "staging link" > (last resort) window.location.origin
 function getClientOrigin(): string {
+  // 1) Explicit data attribute on your widget root
+  const dataAttr = (document.querySelector("[data-venn-client-origin]") as HTMLElement | null)
+    ?.getAttribute("data-venn-client-origin");
+  if (dataAttr) return dataAttr;
+
+  // 2) <meta name="venn-client-origin" content="https://venn-eb.devstaging.wearevennture.co.uk">
+  const meta = document.querySelector('meta[name="venn-client-origin"]') as HTMLMetaElement | null;
+  if (meta?.content) return meta.content;
+
+  // 3) Existing "staging link" element
   const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
   if (href) {
-    try { return new URL(href).origin; } catch { /* fall through */ }
+    try { return new URL(href).origin; } catch { /* ignore */ }
   }
-  return window.location.origin; // fallback to CMS origin
+
+  // 4) Fallback (will cause 401 at gateway if it's the CMS origin)
+  return window.location.origin;
 }
+
 
 function commonApiHeaders(extra: Record<string, string> = {}) {
   return {
