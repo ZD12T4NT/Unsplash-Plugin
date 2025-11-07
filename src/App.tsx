@@ -176,13 +176,11 @@ export function ImageItem({ img }: { img: any }) {
                 alert("Image field container not found.");
                 return;
               }
+              const fieldId = "imageuploadXQr7szjAUik=";
               const fileInput =
-                container.querySelector<HTMLInputElement>(
-                  "#imageuploadXQr7szjAUik="
-                ) ||
-                container.querySelector<HTMLInputElement>(
-                  'input[type="file"].imageupload.upload.uploadBtn'
-                );
+                container.querySelector<HTMLInputElement>(`#${CSS.escape(fieldId)}`) ||
+                container.querySelector<HTMLInputElement>('input[type="file"].imageupload.upload.uploadBtn');
+
               const hiddenIdInput =
                 container.querySelector<HTMLInputElement>(".HashedImageID");
               const altInput =
