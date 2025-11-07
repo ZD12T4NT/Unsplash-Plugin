@@ -1,127 +1,98 @@
 // /pages/api/unsplash-file.js
 
-// -------------------------
-// CORS + allowlist
-// -------------------------
+// ---------- CORS ----------
 function parseCsv(str = "") {
-  return str
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  return str.split(",").map(s => s.trim()).filter(Boolean);
 }
-
 const DEFAULT_ALLOWED = [
   /^http:\/\/localhost(:\d+)?$/i,
   /^https:\/\/cms\.dev\.wearevennture\.co\.uk$/i,
   /^https:\/\/cms\.wearevennture\.co\.uk$/i,
 ];
-
 function isAllowedOrigin(origin) {
   if (!origin) return false;
-  const fromEnv = parseCsv(process.env.ALLOWED_ORIGINS_CSV || "");
-  if (fromEnv.length && fromEnv.includes(origin)) return true;
-  return DEFAULT_ALLOWED.some((rx) => rx.test(origin));
+  const env = parseCsv(process.env.ALLOWED_ORIGINS_CSV || "");
+  if (env.length && env.includes(origin)) return true;
+  return DEFAULT_ALLOWED.some(rx => rx.test(origin));
 }
-
 function applyCors(req, res) {
   const origin = req.headers.origin || "";
   res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader(
-    "Access-Control-Allow-Headers",
-    "Content-Type, X-Venn-Client-Origin"
-  );
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Venn-Client-Origin");
   res.setHeader("Access-Control-Max-Age", "86400");
-  res.setHeader(
-    "Access-Control-Allow-Origin",
-    isAllowedOrigin(origin) ? origin : "null"
-  );
+  res.setHeader("Access-Control-Allow-Origin", isAllowedOrigin(origin) ? origin : "null");
 }
 
-// -------------------------
-// Utils
-// -------------------------
-function getHeader(req, name) {
-  const v = req.headers[name.toLowerCase()];
-  return Array.isArray(v) ? v[0] : v;
-}
-
+// ---------- Utils ----------
 function isSafeUnsplashUrl(href) {
   try {
     const u = new URL(href);
-    return (
-      u.protocol === "https:" &&
-      (u.hostname === "api.unsplash.com" || u.hostname.endsWith("images.unsplash.com"))
-    );
-  } catch {
-    return false;
-  }
+    return u.protocol === "https:" &&
+      (u.hostname === "api.unsplash.com" || u.hostname.endsWith("images.unsplash.com"));
+  } catch { return false; }
 }
-
 function timeout(ms) {
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(new Error("ETIMEDOUT")), ms);
   return { signal: ac.signal, cancel: () => clearTimeout(t) };
 }
 
-// -------------------------
-// Handler
-// -------------------------
+// ---------- Handler ----------
 export default async function handler(req, res) {
   applyCors(req, res);
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST")
-    return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
 
   try {
-    const body = req.body || {};
-    const downloadUrl = body.url;
-    if (!downloadUrl || typeof downloadUrl !== "string")
-      return res.status(400).json({ error: "Missing url" });
+    const { url } = req.body || {};
+    if (!url || typeof url !== "string") return res.status(400).json({ error: "Missing url" });
+    if (!isSafeUnsplashUrl(url)) return res.status(400).json({ error: "URL must be Unsplash" });
 
-    if (!isSafeUnsplashUrl(downloadUrl))
-      return res.status(400).json({ error: "URL must be Unsplash" });
+    const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
+    if (!UNSPLASH_ACCESS_KEY) {
+      return res.status(500).json({ error: "UNSPLASH_ACCESS_KEY not configured" });
+    }
 
-    // Follow Unsplash redirect to the actual image bytes
+    // GET the download_location with auth → counts as download + redirects to images CDN
     const { signal, cancel } = timeout(15000);
-    let imgRes;
+    let upstream;
     try {
-      imgRes = await fetch(downloadUrl, {
+      upstream = await fetch(url, {
+        method: "GET",
         redirect: "follow",
         signal,
         headers: {
-          // Helpful accept header; Unsplash will 302 to images CDN
           accept: "image/*,application/octet-stream;q=0.9",
-          "user-agent":
-            "vennture-unsplash-upload/1.0 (+https://wearevennture.co.uk)",
+          authorization: `Client-ID ${UNSPLASH_ACCESS_KEY}`,
+          "user-agent": "vennture-unsplash-upload/1.0",
         },
       });
     } catch (e) {
       cancel();
-      if (e?.name === "AbortError" || e?.message === "ETIMEDOUT")
+      if (e?.name === "AbortError" || e?.message === "ETIMEDOUT") {
         return res.status(504).json({ error: "Upstream timeout" });
+      }
       throw e;
     }
     cancel();
 
-    if (!imgRes.ok) {
-      const t = await imgRes.text().catch(() => "");
-      return res.status(imgRes.status).json({
+    if (!upstream.ok) {
+      const t = await upstream.text().catch(() => "");
+      return res.status(upstream.status).json({
         error: "Failed to fetch image",
         bodyPreview: t.slice(0, 300),
       });
     }
 
-    // Content-Type from upstream; default to jpeg
-    const ct = imgRes.headers.get("content-type") || "image/jpeg";
-    const ab = await imgRes.arrayBuffer();
-    const buf = Buffer.from(ab);
+    const ct = upstream.headers.get("content-type") || "image/jpeg";
+    const ab = await upstream.arrayBuffer();
 
-    // Repeat CORS on the final response (paranoid but safe)
+    // Repeat CORS on final response
     applyCors(req, res);
     res.setHeader("Content-Type", ct);
     res.setHeader("Cache-Control", "no-store");
-    res.status(200).send(buf);
+    return res.status(200).send(Buffer.from(ab));
   } catch (err) {
     console.error("[API] unsplash-file error:", err?.message || err);
     return res.status(500).json({ error: "Internal server error" });

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import {
-  registerDownload,
   searchImages,
   type UnsplashSearchResponseItemDto,
 } from "./services/unsplash";
@@ -81,132 +80,134 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
           }}
         />
 
-        <button
-          type="button"
-          onClick={async (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            (e as any).stopImmediatePropagation?.();
+      <button
+  type="button"
+  onClick={async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e as any).stopImmediatePropagation?.();
 
-            const btn = e.currentTarget as HTMLButtonElement;
-            btn.disabled = true;
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
 
-            try {
-              // 1) Register Unsplash download (non-blocking)
-              try {
-                await registerDownload(img.DownloadLocation);
-              } catch (err) {
-                console.warn("[VENN] registerDownload failed:", err);
-              }
+    try {
+      // 1) Fetch image bytes through Gateway (via Vercel backend)
+      const fileResp = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Venn-Client-Origin": window.location.origin,
+        },
+        body: JSON.stringify({ url: img.DownloadLocation }),
+      });
 
-              // 2) Fetch image bytes from your Vercel API
-              const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "X-Venn-Client-Origin": window.location.origin,
-                },
-                body: JSON.stringify({ url: img.DownloadLocation }),
-              });
-              if (!fileResp.ok) {
-                const t = await fileResp.text().catch(() => "");
-                console.error("[VENN] /unsplash-file failed:", fileResp.status, t);
-                alert("Could not fetch image bytes.");
-                return;
-              }
-              const blob = await fileResp.blob();
+      if (!fileResp.ok) {
+        const t = await fileResp.text().catch(() => "");
+        console.error(
+          "[VENN] /download-unsplash failed:",
+          fileResp.status,
+          t
+        );
+        alert("Could not fetch image via gateway.");
+        return;
+      }
 
-              // 3) Build a File for the CMS uploader
-              const safeAuthor = (img.AuthorAttributionName || "unsplash")
-                .replace(/[^a-z0-9-_]+/gi, "-")
-                .toLowerCase();
-              const ext = (blob.type || "").includes("png") ? "png" : "jpg";
-              const file = new File([blob], `${safeAuthor}.${ext}`, {
-                type: blob.type || "image/jpeg",
-              });
-              const dt = new DataTransfer();
-              dt.items.add(file);
+      const blob = await fileResp.blob();
 
-              // 4) Find CMS elements
-              const container = document.querySelector<HTMLElement>(
-                'dd.dev-module-field[data-module-fieldid="Image"]'
-              );
-              if (!container) {
-                alert("Image field container not found.");
-                return;
-              }
-              const fileInput =
-                container.querySelector<HTMLInputElement>(
-                  "#imageuploadXQr7szjAUik="
-                ) ||
-                container.querySelector<HTMLInputElement>(
-                  'input[type="file"].imageupload.upload.uploadBtn'
-                );
-              const hiddenIdInput =
-                container.querySelector<HTMLInputElement>(".HashedImageID");
-              const altInput =
-                container.querySelector<HTMLInputElement>(".dev-alt-tag");
-              const uploadingUI =
-                container.querySelector<HTMLElement>(".uploading-file-this-file");
-              const previewDiv =
-                container.querySelector<HTMLElement>(".dragging-area");
+      // 2) Build a File for the CMS uploader
+      const safeAuthor = (img.AuthorAttributionName || "unsplash")
+        .replace(/[^a-z0-9-_]+/gi, "-")
+        .toLowerCase();
+      const ext = (blob.type || "").includes("png") ? "png" : "jpg";
+      const file = new File([blob], `${safeAuthor}.${ext}`, {
+        type: blob.type || "image/jpeg",
+      });
+      const dt = new DataTransfer();
+      dt.items.add(file);
 
-              if (!fileInput) {
-                alert("Upload input not found.");
-                return;
-              }
+      // 3) Find CMS upload fields
+      const container = document.querySelector<HTMLElement>(
+        'dd.dev-module-field[data-module-fieldid="Image"]'
+      );
+      if (!container) {
+        alert("Image field container not found.");
+        return;
+      }
 
-              // 5) Trigger CMS upload
-              fileInput.files = dt.files;
-              fileInput.dispatchEvent(new Event("input", { bubbles: true }));
-              fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+      const fileInput =
+        container.querySelector<HTMLInputElement>(
+          "#imageuploadXQr7szjAUik="
+        ) ||
+        container.querySelector<HTMLInputElement>(
+          'input[type="file"].imageupload.upload.uploadBtn'
+        );
 
-              // 6) Update alt text
-              if (altInput) {
-                altInput.value = `Photo by ${img.AuthorAttributionName}`;
-                altInput.dispatchEvent(new Event("input", { bubbles: true }));
-                altInput.dispatchEvent(new Event("change", { bubbles: true }));
-              }
+      const hiddenIdInput =
+        container.querySelector<HTMLInputElement>(".HashedImageID");
+      const altInput =
+        container.querySelector<HTMLInputElement>(".dev-alt-tag");
+      const uploadingUI =
+        container.querySelector<HTMLElement>(".uploading-file-this-file");
+      const previewDiv =
+        container.querySelector<HTMLElement>(".dragging-area");
 
-              // 7) Temporary preview
-              if (previewDiv) {
-                const tempUrl = URL.createObjectURL(blob);
-                previewDiv.style.backgroundImage = `url(${tempUrl})`;
-              }
+      if (!fileInput) {
+        alert("Upload input not found.");
+        return;
+      }
 
-              // 8) Wait for CMS to assign the ID (and/or finish UI)
-              await waitForHiddenIdToChange(hiddenIdInput);
-              await waitForUploadToFinish(uploadingUI);
+      // 4) Trigger CMS upload
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-              console.log(
-                "[VENN] ✅ Hidden media ID:",
-                hiddenIdInput?.value || "(not set in time)"
-              );
-            } catch (err) {
-              console.error(err);
-              alert("Failed to import image. Please try again.");
-            } finally {
-              btn.disabled = false;
-            }
-          }}
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "#000",
-            color: "#fff",
-            border: "none",
-            padding: "10px 14px",
-            borderRadius: "8px",
-            fontSize: "13px",
-            fontWeight: 600,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-            cursor: "pointer",
-          }}
-        >
-          Use this image
-        </button>
+      // 5) Set alt text
+      if (altInput) {
+        altInput.value = `Photo by ${img.AuthorAttributionName}`;
+        altInput.dispatchEvent(new Event("input", { bubbles: true }));
+        altInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      // 6) Preview immediately
+      if (previewDiv) {
+        const tempUrl = URL.createObjectURL(blob);
+        previewDiv.style.backgroundImage = `url(${tempUrl})`;
+      }
+
+      // 7) Wait for upload to complete
+      await waitForHiddenIdToChange(hiddenIdInput);
+      await waitForUploadToFinish(uploadingUI);
+
+      console.log(
+        "[VENN] ✅ Hidden media ID:",
+        hiddenIdInput?.value || "(not set in time)"
+      );
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import image. Please try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  }}
+  style={{
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+    background: "#000",
+    color: "#fff",
+    border: "none",
+    padding: "10px 14px",
+    borderRadius: "8px",
+    fontSize: "13px",
+    fontWeight: 600,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+    cursor: "pointer",
+  }}
+>
+  Use this image
+</button>
+
       </div>
 
       <p style={{ fontSize: 12, marginTop: 4 }}>
