@@ -1,4 +1,4 @@
-// /pages/api/search-unsplash.js
+// api/search-unsplash.js
 
 function getHeader(req, name) {
   const v = req.headers[name.toLowerCase()];

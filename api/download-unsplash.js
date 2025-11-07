@@ -1,4 +1,4 @@
-// /pages/api/download-unsplash.js
+// api/download-unsplash.js
 
 function getHeader(req, name) {
   const v = req.headers[name.toLowerCase()];

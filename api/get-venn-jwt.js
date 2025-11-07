@@ -1,4 +1,4 @@
-// /pages/api/get-venn-jwt.js
+// api/get-venn-jwt.js
 
 function getHeader(req, name) {
   const v = req.headers[name.toLowerCase()];
