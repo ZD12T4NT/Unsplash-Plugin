@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
-  searchImages,
   registerDownload,
+  searchImages,
   type UnsplashSearchResponseItemDto,
 } from "./services/unsplash";
 import { Search, X, Image, Bookmark } from "lucide-react";
@@ -17,100 +17,202 @@ const PRESETS = [
 function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
   const [hover] = useState(false);
 
+  // Real implementation (replaces the stub that throws)
+  async function waitForUploadToFinish(
+    uploadingUI: HTMLElement | null,
+    timeoutMs = 30000
+  ) {
+    // If we can’t find the progress UI, just wait briefly
+    if (!uploadingUI) {
+      await new Promise((r) => setTimeout(r, 800));
+      return;
+    }
+
+    const start = Date.now();
+    return new Promise<void>((resolve) => {
+      const interval = setInterval(() => {
+        const elapsed = Date.now() - start;
+        const isVisible = uploadingUI.style.display !== "none";
+        if (!isVisible || elapsed > timeoutMs) {
+          clearInterval(interval);
+          resolve();
+        }
+      }, 200);
+    });
+  }
+
   return (
     <div style={{ marginBottom: 0 }}>
-    <div className="unsplash-card" style={{ position: "relative" }}>
-  <img src={img.ThumbnailImageUrl} alt="" style={{ display: "block", width: "100%", height: "auto" }} />
+      <div className="unsplash-card" style={{ position: "relative" }}>
+        <img
+          src={img.ThumbnailImageUrl}
+          alt=""
+          style={{ display: "block", width: "100%", height: "auto" }}
+        />
 
-  {/* overlay that fades in */}
-  <div
-    className="unsplash-overlay"
-    style={{
-      position: "absolute",
-      inset: 0,
-      background: "rgba(0,0,0,0.45)",
-      opacity: hover ? 1 : 0,
-      transition: "opacity 0.25s ease",
-      pointerEvents: "none", // overlay doesn't block clicks
-    }}
-  />
+        {/* Overlay fade */}
+        <div
+          className="unsplash-overlay"
+          style={{
+            position: "absolute",
+            inset: 0,
+            background: "rgba(0,0,0,0.45)",
+            opacity: hover ? 1 : 0,
+            transition: "opacity 0.25s ease",
+            pointerEvents: "none",
+          }}
+        />
 
-  {/* the actual button (not stretched) */}
-  <button
-    type="button"
-    onKeyDown={(e) => e.stopPropagation()}
-    onClick={async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      (e as any).stopImmediatePropagation?.();
+        {/* Centered button */}
+        <button
+          type="button"
+          onClick={async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            (e as any).stopImmediatePropagation?.();
 
-      // import
-      const reg = await registerDownload(img.DownloadLocation);
-      const payload = (reg && (reg.data ?? reg)) || {};
-      const assetId =
-        payload.id || payload.Id || payload.mediaId || payload.MediaId || payload.assetId || payload.AssetId;
+            const btn = e.currentTarget as HTMLButtonElement;
+            btn.disabled = true;
 
-      if (!assetId) {
-        console.error("[VENN] registerDownload returned no asset id:", reg);
-        alert("Import didn’t return a media ID. Check /api/download-unsplash response.");
-        return;
-      }
+            try {
+              //  Register Unsplash download
+              try {
+                await registerDownload(img.DownloadLocation);
+              } catch (err) {
+                console.warn("[VENN] registerDownload failed:", err);
+              }
 
-      // write to CMS input
-      const container = document.querySelector<HTMLElement>('.dev-module-field[data-module-fieldid="Image"]');
-      const hiddenInput = container?.querySelector<HTMLInputElement>('.HashedImageID');
-      const altInput = container?.querySelector<HTMLInputElement>('.dev-alt-tag');
-      const draggingArea = container?.querySelector<HTMLElement>('.dragging-area');
+              // Fetch the image file from our proxy
+              const fileResp = await fetch("/api/unsplash-file", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "X-Venn-Client-Origin": window.location.origin,
+                },
+                body: JSON.stringify({ url: img.DownloadLocation }),
+              });
 
-      if (hiddenInput) {
-        hiddenInput.value = String(assetId);
-        hiddenInput.dispatchEvent(new Event("input", { bubbles: true }));
-        hiddenInput.dispatchEvent(new Event("change", { bubbles: true }));
-      } else {
-        const hashedByName = document.querySelector<HTMLInputElement>('[name="XQr7szjAUik="]');
-        if (hashedByName) {
-          hashedByName.value = String(assetId);
-          hashedByName.dispatchEvent(new Event("input", { bubbles: true }));
-          hashedByName.dispatchEvent(new Event("change", { bubbles: true }));
-        }
-      }
+              if (!fileResp.ok) {
+                const t = await fileResp.text().catch(() => "");
+                console.error(
+                  "[VENN] /api/unsplash-file failed:",
+                  fileResp.status,
+                  t
+                );
+                alert("Could not fetch image bytes.");
+                return;
+              }
 
-      if (altInput) {
-        altInput.value = `Photo by ${img.AuthorAttributionName}`;
-        altInput.dispatchEvent(new Event("input", { bubbles: true }));
-        altInput.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+              const blob = await fileResp.blob();
 
-      if (draggingArea) {
-        const cdnUrl = payload.url || payload.Url || payload.src || payload.sourceUrl || img.ThumbnailImageUrl;
-        draggingArea.style.backgroundImage = `url(${cdnUrl})`;
-      }
+              // Create File for CMS
+              const safeAuthor = (img.AuthorAttributionName || "unsplash")
+                .replace(/[^a-z0-9-_]+/gi, "-")
+                .toLowerCase();
+              const ext = (blob.type || "").includes("png") ? "png" : "jpg";
+              const file = new File([blob], `${safeAuthor}.${ext}`, {
+                type: blob.type || "image/jpeg",
+              });
+              const dt = new DataTransfer();
+              dt.items.add(file);
 
-      console.log("[VENN] Injected asset id into CMS field");
-    }}
-    style={{
-      position: "absolute",
-      left: "50%",
-      top: "50%",
-      transform: "translate(-50%, -50%)",
-      pointerEvents: "auto", // clickable even when overlay is pointer-none
-      background: "#000",    // solid black button
-      color: "#fff",
-      border: "none",
-      padding: "10px 14px",
-      borderRadius: "8px",
-      fontSize: "13px",
-      fontWeight: 600,
-      boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-      opacity: hover ? 1 : 0,
-      transition: "opacity 0.25s ease, transform 0.15s ease",
-    }}
-    onMouseEnter={() => {/* set hover true in parent if you manage hover state */}}
-  >
-    Use this image
-  </button>
-</div>
+              // Find CMS upload elements
+              const container = document.querySelector<HTMLElement>(
+                'dd.dev-module-field[data-module-fieldid="Image"]'
+              );
+              if (!container) {
+                alert("Image field container not found.");
+                return;
+              }
 
+              const fileInput = container.querySelector<HTMLInputElement>(
+                "#imageuploadXQr7szjAUik="
+              );
+              const fileInputFallback =
+                fileInput ||
+                container.querySelector<HTMLInputElement>(
+                  'input[type="file"].imageupload.upload.uploadBtn'
+                );
+
+              const hiddenIdInput = container.querySelector<HTMLInputElement>(
+                ".HashedImageID"
+              );
+              const altInput = container.querySelector<HTMLInputElement>(
+                ".dev-alt-tag"
+              );
+              const uploadingUI =
+                container.querySelector<HTMLElement>(
+                  ".uploading-file-this-file"
+                );
+              const previewDiv =
+                container.querySelector<HTMLElement>(".dragging-area");
+
+              if (!fileInputFallback) {
+                alert("Upload input not found.");
+                return;
+              }
+
+              // Trigger CMS upload
+              fileInputFallback.files = dt.files;
+              fileInputFallback.dispatchEvent(
+                new Event("input", { bubbles: true })
+              );
+              fileInputFallback.dispatchEvent(
+                new Event("change", { bubbles: true })
+              );
+
+              // Update Alt Text
+              if (altInput) {
+                altInput.value = `Photo by ${img.AuthorAttributionName}`;
+                altInput.dispatchEvent(new Event("input", { bubbles: true }));
+                altInput.dispatchEvent(new Event("change", { bubbles: true }));
+              }
+
+              // Temporary preview
+              if (previewDiv) {
+                const tempUrl = URL.createObjectURL(blob);
+                previewDiv.style.backgroundImage = `url(${tempUrl})`;
+              }
+
+              // Wait for upload to finish
+              await waitForUploadToFinish(uploadingUI);
+
+              if (hiddenIdInput && !hiddenIdInput.value) {
+                console.warn(
+                  "[VENN] Upload finished but no asset ID set yet — CMS may handle it on save."
+                );
+              }
+
+              console.log(
+                "[VENN] Upload triggered. Hidden ID now:",
+                hiddenIdInput?.value
+              );
+            } catch (err) {
+              console.error(err);
+              alert("Failed to import image. Please try again.");
+            } finally {
+              btn.disabled = false;
+            }
+          }}
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "#000",
+            color: "#fff",
+            border: "none",
+            padding: "10px 14px",
+            borderRadius: "8px",
+            fontSize: "13px",
+            fontWeight: 600,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+            cursor: "pointer",
+          }}
+        >
+          Use this image
+        </button>
+      </div>
 
       <p style={{ fontSize: 12, marginTop: 4 }}>
         Photo by{" "}
@@ -123,9 +225,10 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
           {img.AuthorAttributionName}
         </a>
       </p>
-    </div> 
+    </div>
   );
 }
+
 
 export function App() {
  
@@ -156,6 +259,9 @@ const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | 
   // -------------------------
   // Basic search (your working code)
   // -------------------------
+
+
+
   const basicSearch = async (term?: string) => {
     const query = term ?? searchTerm.trim();
     if (!query) return;
