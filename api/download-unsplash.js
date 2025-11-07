@@ -50,7 +50,7 @@ export default async function handler(req, res) {
 
   try {
     const body = req.body || {};
-    const downloadUrl = body.url; // <-- rename for clarity
+    const downloadUrl = body.url;
     if (!downloadUrl) return res.status(400).json({ error: "Missing download URL" });
 
     const clientOrigin = (getHeader(req, "x-venn-client-origin") || getHeader(req, "origin") || "").trim();
@@ -64,7 +64,7 @@ export default async function handler(req, res) {
 
     if (!authRes.ok) {
       const text = await authRes.text().catch(() => "");
-      return res.status(502).json({
+      return res.status(401).json({
         error: "Failed to get JWT (proxy)",
         status: authRes.status,
         bodyPreview: text.slice(0, 500),
@@ -72,14 +72,7 @@ export default async function handler(req, res) {
       });
     }
 
-    let authJson = {};
-    try {
-      authJson = await authRes.json();
-    } catch {
-      return res.status(502).json({ error: "Invalid JSON from get-venn-jwt", clientOrigin });
-    }
-
-    // Accept both token and jwt
+    const authJson = await authRes.json().catch(() => ({}));
     const token = authJson?.token || authJson?.Token || authJson?.jwt || authJson?.JWT;
     if (!token) {
       return res.status(502).json({
@@ -114,24 +107,27 @@ export default async function handler(req, res) {
       });
     }
 
+    // Gateway currently returns only a URL. Normalize and return it.
     const json = await gwRes.json().catch(() => ({}));
-    // Normalize possible shapes
     const data = json?.data ?? json ?? {};
-    const id =
-      data.id || data.Id || data.mediaId || data.MediaId || data.assetId || data.AssetId || null;
     const cdnUrl = data.url || data.Url || data.src || data.sourceUrl || null;
 
-    if (!id) {
+    if (!cdnUrl) {
+      // If the gateway ever returns an id in future, we’ll carry it too.
+      const maybeId = data.id || data.Id || data.mediaId || data.MediaId || data.assetId || data.AssetId || null;
       return res.status(502).json({
-        error: "Gateway did not return an asset id",
+        error: "Gateway returned no URL",
         preview: JSON.stringify(json).slice(0, 500),
+        maybeId
       });
     }
 
-    return res.status(200).json({ id, url: cdnUrl, raw: json });
+    // Return only what the frontend needs
+    return res.status(200).json({ url: cdnUrl });
   } catch (err) {
     console.error("[API] download-unsplash error:", err?.message || err);
     return res.status(500).json({ error: "Internal server error" });
   }
 }
+
 

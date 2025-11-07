@@ -44,25 +44,48 @@ export function setCmsImageFieldNames(opts: { image: string; tag?: string }) {
 // -------------------------
 // Robust client origin resolver.
 // Priority: data-attr > meta tag > "staging link" > (last resort) window.location.origin
+
+
+// function getClientOrigin(): string {
+//   // 1) Explicit data attribute on your widget root
+//   const dataAttr = (document.querySelector("[data-venn-client-origin]") as HTMLElement | null)
+//     ?.getAttribute("data-venn-client-origin");
+//   if (dataAttr) return dataAttr;
+
+//   // 2) <meta name="venn-client-origin" content="https://venn-eb.devstaging.wearevennture.co.uk">
+//   const meta = document.querySelector('meta[name="venn-client-origin"]') as HTMLMetaElement | null;
+//   if (meta?.content) return meta.content;
+
+//   // 3) Existing "staging link" element
+//   const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
+//   if (href) {
+//     try { return new URL(href).origin; } catch { /* ignore */ }
+//   }
+
+//   // 4) Fallback (will cause 401 at gateway if it's the CMS origin)
+//   return window.location.origin;
+// }
+
 function getClientOrigin(): string {
-  // 1) Explicit data attribute on your widget root
+  // data attribute (if your widget adds one)
   const dataAttr = (document.querySelector("[data-venn-client-origin]") as HTMLElement | null)
     ?.getAttribute("data-venn-client-origin");
   if (dataAttr) return dataAttr;
 
-  // 2) <meta name="venn-client-origin" content="https://venn-eb.devstaging.wearevennture.co.uk">
+  // meta tag (works on front-end pages)
   const meta = document.querySelector('meta[name="venn-client-origin"]') as HTMLMetaElement | null;
   if (meta?.content) return meta.content;
 
-  // 3) Existing "staging link" element
+  // existing "staging link" element
   const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
   if (href) {
     try { return new URL(href).origin; } catch { /* ignore */ }
   }
 
-  // 4) Fallback (will cause 401 at gateway if it's the CMS origin)
-  return window.location.origin;
+  // FINAL fallback — your staging/web origin (for CMS iframe)
+  return "https://venn-eb.devstaging.wearevennture.co.uk";
 }
+
 
 
 function commonApiHeaders(extra: Record<string, string> = {}) {
@@ -201,17 +224,41 @@ export async function registerDownload(url: string) {
     body: JSON.stringify({ url }),
   });
 
-  if (!res.ok) throw new Error("Failed to register download");
-  return res.json();
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`[Download] Gateway failed: ${res.status} ${txt.slice(0, 200)}`);
+  }
+
+  const json = await res.json().catch(() => ({}));
+  // New gateway may return only { url }
+  const cdnUrl =
+    json?.url || json?.Url || json?.data?.url || json?.data?.Url || null;
+
+  if (cdnUrl) {
+    console.debug("[Download] Gateway returned CDN URL:", cdnUrl);
+    return { url: cdnUrl }; // consistent shape
+  }
+
+  // Backwards compat: legacy gateways returned an asset id
+  const assetId =
+    json?.id || json?.Id || json?.mediaId || json?.MediaId || json?.assetId || json?.AssetId || null;
+
+  if (!assetId) {
+    console.warn("[Download] Gateway returned no asset id or url:", json);
+    throw new Error("Gateway returned neither asset ID nor URL");
+  }
+
+  return { id: assetId };
 }
+
 
 // -------------------------
 // Select image → import → write to CMS field
 // -------------------------
-function pickAssetId(reg: any): string | null {
-  const obj = reg?.data ?? reg ?? {};
-  return obj.id || obj.Id || obj.mediaId || obj.MediaId || obj.assetId || obj.AssetId || null;
-}
+// function pickAssetId(reg: any): string | null {
+//   const obj = reg?.data ?? reg ?? {};
+//   return obj.id || obj.Id || obj.mediaId || obj.MediaId || obj.assetId || obj.AssetId || null;
+// }
 
 /**
  * Call this when an Unsplash card is selected.
@@ -220,7 +267,18 @@ function pickAssetId(reg: any): string | null {
 export async function selectUnsplashImage(item: UnsplashSearchResponseItemDto): Promise<void> {
   // 1) Import to your media/CDN
   const reg = await registerDownload(item.DownloadLocation);
-  const assetId = pickAssetId(reg);
+
+  // Either we got an asset ID or just a CDN URL
+  const assetId = reg.id || null;
+  const cdnUrl = reg.url || null;
+
+  if (!assetId && cdnUrl) {
+    console.warn("[CMS] Gateway returned only URL (not ID):", cdnUrl);
+    // optional: directly write CDN URL into your image field if your CMS supports it
+    writeField(CMS_IMAGE_FIELD_NAME, cdnUrl);
+    writeField(CMS_IMAGE_TAG_FIELD_NAME, `Photo by ${item.AuthorAttributionName} (Unsplash)`);
+    return;
+  }
 
   if (!assetId) {
     console.error("[CMS] registerDownload did not return an asset id:", reg);
@@ -236,6 +294,7 @@ export async function selectUnsplashImage(item: UnsplashSearchResponseItemDto): 
 
   console.debug("[CMS] Saved image asset id to form", { field: CMS_IMAGE_FIELD_NAME, assetId });
 }
+
 
 /**
  * Utility: quickly scan likely media fields (run once if mapping changes).
