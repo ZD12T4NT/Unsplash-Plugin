@@ -5,8 +5,15 @@ import {
 } from "./services/unsplash";
 import { Search, X, Image, Bookmark } from "lucide-react";
 // top of file (keep these once)
+
+// -------------------------
+// Config
+// -------------------------
 const VERCEL_API_BASE = "https://unsplash-plugin.vercel.app/api";
 
+// -------------------------
+// Helper functions
+// -------------------------
 function getClientOrigin(): string {
   const dataAttr = (document.querySelector("[data-venn-client-origin]") as HTMLElement | null)
     ?.getAttribute("data-venn-client-origin");
@@ -15,8 +22,14 @@ function getClientOrigin(): string {
   const meta = document.querySelector('meta[name="venn-client-origin"]') as HTMLMetaElement | null;
   if (meta?.content) return meta.content;
 
-  const href = (document.querySelector('.staging-link a') as HTMLAnchorElement | null)?.href;
-  if (href) { try { return new URL(href).origin; } catch {} }
+  const href = (document.querySelector(".staging-link a") as HTMLAnchorElement | null)?.href;
+  if (href) {
+    try {
+      return new URL(href).origin;
+    } catch {
+      /* ignore */
+    }
+  }
 
   return window.location.origin;
 }
@@ -27,32 +40,58 @@ async function waitForHiddenIdToChange(el: HTMLInputElement | null, timeoutMs = 
   const start = Date.now();
   await new Promise<void>((resolve) => {
     const i = setInterval(() => {
-      if (el.value && el.value !== startVal) { clearInterval(i); resolve(); return; }
-      if (Date.now() - start > timeoutMs) { clearInterval(i); resolve(); }
+      if (el.value && el.value !== startVal) {
+        clearInterval(i);
+        resolve();
+        return;
+      }
+      if (Date.now() - start > timeoutMs) {
+        clearInterval(i);
+        resolve();
+      }
     }, 200);
   });
 }
 
 async function waitForUploadToFinish(uploadingUI: HTMLElement | null, timeoutMs = 30000) {
-  if (!uploadingUI) { await new Promise((r) => setTimeout(r, 800)); return; }
+  if (!uploadingUI) {
+    await new Promise((r) => setTimeout(r, 800));
+    return;
+  }
   const start = Date.now();
   await new Promise<void>((resolve) => {
     const interval = setInterval(() => {
       const elapsed = Date.now() - start;
       const isVisible = uploadingUI.style.display !== "none";
-      if (!isVisible || elapsed > timeoutMs) { clearInterval(interval); resolve(); }
+      if (!isVisible || elapsed > timeoutMs) {
+        clearInterval(interval);
+        resolve();
+      }
     }, 200);
   });
 }
 
-function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
-  const [hover] = useState(false);
+// -------------------------
+// Component
+// -------------------------
+export function ImageItem({ img }: { img: any }) {
+  const [hover, setHover] = useState(false);
 
   return (
     <div style={{ marginBottom: 0 }}>
-      <div className="unsplash-card" style={{ position: "relative" }}>
-        <img src={img.ThumbnailImageUrl} alt="" style={{ display: "block", width: "100%", height: "auto" }} />
+      <div
+        className="unsplash-card"
+        style={{ position: "relative", cursor: "pointer" }}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+      >
+        <img
+          src={img.ThumbnailImageUrl}
+          alt=""
+          style={{ display: "block", width: "100%", height: "auto" }}
+        />
 
+        {/* Overlay fade */}
         <div
           className="unsplash-overlay"
           style={{
@@ -65,6 +104,7 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
           }}
         />
 
+        {/* Hover button */}
         <button
           type="button"
           onClick={async (e) => {
@@ -76,12 +116,12 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
             btn.disabled = true;
 
             try {
-              // 1) Gateway: register + return CDN url (JSON)
+              // 1) Register + get CDN URL from gateway
               const dlRes = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  "X-Venn-Client-Origin": getClientOrigin(), // must be the client/staging origin
+                  "X-Venn-Client-Origin": getClientOrigin(),
                 },
                 body: JSON.stringify({ url: img.DownloadLocation }),
               });
@@ -92,14 +132,15 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
                 return;
               }
               const dlJson = await dlRes.json().catch(() => ({}));
-              const cdnUrl = dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
+              const cdnUrl =
+                dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
               if (!cdnUrl) {
                 console.error("[VENN] download-unsplash returned no url:", dlJson);
                 alert("Gateway did not return an image URL.");
                 return;
               }
 
-              // 2) Fetch the actual bytes from our Vercel proxy (no Unsplash key needed)
+              // 2) Get the actual image bytes via proxy
               const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
                 method: "POST",
                 headers: {
@@ -116,31 +157,52 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
               }
               const blob = await fileResp.blob();
 
-              // 3) Build a File for the CMS uploader
-              const safeAuthor = (img.AuthorAttributionName || "unsplash").replace(/[^a-z0-9-_]+/gi, "-").toLowerCase();
+              // 3) Build file for CMS upload
+              const safeAuthor = (img.AuthorAttributionName || "unsplash")
+                .replace(/[^a-z0-9-_]+/gi, "-")
+                .toLowerCase();
               const ext = (blob.type || "").includes("png") ? "png" : "jpg";
-              const file = new File([blob], `${safeAuthor}.${ext}`, { type: blob.type || "image/jpeg" });
+              const file = new File([blob], `${safeAuthor}.${ext}`, {
+                type: blob.type || "image/jpeg",
+              });
               const dt = new DataTransfer();
               dt.items.add(file);
 
-              // 4) Find CMS elements
-              const container = document.querySelector<HTMLElement>('dd.dev-module-field[data-module-fieldid="Image"]');
-              if (!container) { alert("Image field container not found."); return; }
+              // 4) CMS elements
+              const container = document.querySelector<HTMLElement>(
+                'dd.dev-module-field[data-module-fieldid="Image"]'
+              );
+              if (!container) {
+                alert("Image field container not found.");
+                return;
+              }
               const fileInput =
-                container.querySelector<HTMLInputElement>("#imageuploadXQr7szjAUik=") ||
-                container.querySelector<HTMLInputElement>('input[type="file"].imageupload.upload.uploadBtn');
-              const hiddenIdInput = container.querySelector<HTMLInputElement>(".HashedImageID");
-              const altInput = container.querySelector<HTMLInputElement>(".dev-alt-tag");
-              const uploadingUI = container.querySelector<HTMLElement>(".uploading-file-this-file");
-              const previewDiv = container.querySelector<HTMLElement>(".dragging-area");
-              if (!fileInput) { alert("Upload input not found."); return; }
+                container.querySelector<HTMLInputElement>(
+                  "#imageuploadXQr7szjAUik="
+                ) ||
+                container.querySelector<HTMLInputElement>(
+                  'input[type="file"].imageupload.upload.uploadBtn'
+                );
+              const hiddenIdInput =
+                container.querySelector<HTMLInputElement>(".HashedImageID");
+              const altInput =
+                container.querySelector<HTMLInputElement>(".dev-alt-tag");
+              const uploadingUI = container.querySelector<HTMLElement>(
+                ".uploading-file-this-file"
+              );
+              const previewDiv =
+                container.querySelector<HTMLElement>(".dragging-area");
+              if (!fileInput) {
+                alert("Upload input not found.");
+                return;
+              }
 
-              // 5) Trigger CMS upload
+              // 5) Upload to CMS
               fileInput.files = dt.files;
               fileInput.dispatchEvent(new Event("input", { bubbles: true }));
               fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-              // 6) Set alt + preview
+              // 6) Alt + preview
               if (altInput) {
                 altInput.value = `Photo by ${img.AuthorAttributionName}`;
                 altInput.dispatchEvent(new Event("input", { bubbles: true }));
@@ -151,11 +213,14 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
                 previewDiv.style.backgroundImage = `url(${tempUrl})`;
               }
 
-              // 7) Wait for CMS to assign the ID (optional but nice)
+              // 7) Wait for completion
               await waitForHiddenIdToChange(hiddenIdInput);
               await waitForUploadToFinish(uploadingUI);
 
-              console.log("[VENN] ✅ Hidden media ID:", hiddenIdInput?.value || "(not set in time)");
+              console.log(
+                "[VENN] ✅ Hidden media ID:",
+                hiddenIdInput?.value || "(not set in time)"
+              );
             } catch (err) {
               console.error(err);
               alert("Failed to import image. Please try again.");
@@ -177,6 +242,9 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
             fontWeight: 600,
             boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
             cursor: "pointer",
+            opacity: hover ? 1 : 0,
+            transition: "opacity 0.25s ease",
+            pointerEvents: hover ? "auto" : "none",
           }}
         >
           Use this image
@@ -185,13 +253,19 @@ function ImageItem({ img }: { img: UnsplashSearchResponseItemDto }) {
 
       <p style={{ fontSize: 12, marginTop: 4 }}>
         Photo by{" "}
-        <a href={img.AuthorAttributionUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#000" }}>
+        <a
+          href={img.AuthorAttributionUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#000" }}
+        >
           {img.AuthorAttributionName}
         </a>
       </p>
     </div>
   );
 }
+
 
 
 const PRESETS = [
