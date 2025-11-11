@@ -109,162 +109,167 @@ export function ImageItem({
         />
 
         {/* Button */}
-        <button
-          type="button"
-        onClick={async (e) => {
-  e.preventDefault();
-  e.stopPropagation();
-  (e as any).stopImmediatePropagation?.();
+<button
+  type="button"
+  onClick={async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    (e as any).stopImmediatePropagation?.();
 
-  const btn = e.currentTarget as HTMLButtonElement;
-  btn.disabled = true;
+    const btn = e.currentTarget as HTMLButtonElement;
+    btn.disabled = true;
 
-  try {
-    // 1️⃣ Register & get CDN URL from the gateway
-    const dlRes = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Venn-Client-Origin": getClientOrigin(),
-      },
-      body: JSON.stringify({ url: img.DownloadLocation }),
-    });
+    try {
+      // 1️⃣ Register & get CDN URL from the gateway
+      const dlRes = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Venn-Client-Origin": getClientOrigin(),
+        },
+        body: JSON.stringify({ url: img.DownloadLocation }),
+      });
 
-    if (!dlRes.ok) {
-      const t = await dlRes.text().catch(() => "");
-      console.error("[VENN] download-unsplash failed:", dlRes.status, t);
-      alert("Could not fetch image via gateway.");
-      return;
+      if (!dlRes.ok) {
+        const t = await dlRes.text().catch(() => "");
+        console.error("[VENN] download-unsplash failed:", dlRes.status, t);
+        alert("Could not fetch image via gateway.");
+        return;
+      }
+
+      const dlJson = await dlRes.json().catch(() => ({}));
+      const cdnUrl =
+        dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
+      if (!cdnUrl) {
+        console.error("[VENN] download-unsplash returned no url:", dlJson);
+        alert("Gateway did not return an image URL.");
+        return;
+      }
+
+      // 2️⃣ Fetch the image bytes via proxy
+      const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Venn-Client-Origin": getClientOrigin(),
+        },
+        body: JSON.stringify({ url: cdnUrl }),
+      });
+
+      if (!fileResp.ok) {
+        const t = await fileResp.text().catch(() => "");
+        console.error("[VENN] unsplash-file failed:", fileResp.status, t);
+        alert("Could not fetch image bytes.");
+        return;
+      }
+
+      const blob = await fileResp.blob();
+
+      // 3️⃣ Build a File for CMS uploader
+      const safeAuthor = (img.AuthorAttributionName || "unsplash")
+        .replace(/[^a-z0-9-_]+/gi, "-")
+        .toLowerCase();
+      const ext = (blob.type || "").includes("png") ? "png" : "jpg";
+      const file = new File([blob], `${safeAuthor}.${ext}`, {
+        type: blob.type || "image/jpeg",
+      });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+
+      // 4️⃣ Locate CMS upload elements
+      const container = document.querySelector<HTMLElement>(
+        'dd.dev-module-field[data-module-fieldid="Image"]'
+      );
+      if (!container) {
+        alert("Image field container not found.");
+        return;
+      }
+
+      const fileInput =
+        container.querySelector<HTMLInputElement>(
+          'input[type="file"].imageupload.upload.uploadBtn'
+        ) ||
+        container.querySelector<HTMLInputElement>("input[type='file']");
+      const hiddenIdInput =
+        container.querySelector<HTMLInputElement>(".HashedImageID");
+      const altInput =
+        container.querySelector<HTMLInputElement>(".dev-alt-tag");
+      const uploadingUI =
+        container.querySelector<HTMLElement>(".uploading-file-this-file");
+      const previewDiv =
+        container.querySelector<HTMLElement>(".dragging-area");
+
+      if (!fileInput) {
+        alert("Upload input not found.");
+        return;
+      }
+
+      // 5️⃣ Trigger upload
+      fileInput.files = dt.files;
+      fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+
+      // 6️⃣ Alt + temporary preview
+      if (altInput) {
+        altInput.value = `Photo by ${img.AuthorAttributionName}`;
+        altInput.dispatchEvent(new Event("input", { bubbles: true }));
+        altInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      if (previewDiv) {
+        const tempUrl = URL.createObjectURL(blob);
+        previewDiv.style.backgroundImage = `url(${tempUrl})`;
+      }
+
+      // 7️⃣ Wait for upload & hidden ID
+      await waitForHiddenIdToChange(hiddenIdInput);
+      await waitForUploadToFinish(uploadingUI);
+
+      console.log(
+        "[VENN] ✅ Hidden media ID:",
+        hiddenIdInput?.value || "(not set in time)"
+      );
+
+      // ✅ Close modal via prop
+      onClose?.();
+
+      // ✅ Fallback: click close button if the modal is outside React
+      const closeBtn = document.querySelector(
+        ".close-modal, .modal-close, .btn-close, [data-dismiss='modal']"
+      ) as HTMLElement | null;
+      if (closeBtn) {
+        closeBtn.click();
+        console.log("[VENN] Closed modal after successful upload");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to import image. Please try again.");
+    } finally {
+      btn.disabled = false;
     }
+  }}
+  style={{
+    position: "absolute",
+    left: "50%",
+    top: "50%",
+    transform: "translate(-50%, -50%)",
+    background: "#000",
+    color: "#fff",
+    border: "none",
+    padding: "10px 14px",
+    borderRadius: "4px",
+    fontSize: "13px",
+    fontWeight: 400,
+    boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+    cursor: "pointer",
+    opacity: hover ? 1 : 0,
+    transition: "opacity 0.25s ease",
+        pointerEvents: hover ? "auto" : "none",
+        }}
+      >
+        Add to Library
+      </button>
 
-    const dlJson = await dlRes.json().catch(() => ({}));
-    const cdnUrl =
-      dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
-    if (!cdnUrl) {
-      console.error("[VENN] download-unsplash returned no url:", dlJson);
-      alert("Gateway did not return an image URL.");
-      return;
-    }
-
-    // 2️⃣ Fetch the image bytes via proxy
-    const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Venn-Client-Origin": getClientOrigin(),
-      },
-      body: JSON.stringify({ url: cdnUrl }),
-    });
-
-    if (!fileResp.ok) {
-      const t = await fileResp.text().catch(() => "");
-      console.error("[VENN] unsplash-file failed:", fileResp.status, t);
-      alert("Could not fetch image bytes.");
-      return;
-    }
-
-    const blob = await fileResp.blob();
-
-    // 3️⃣ Build a File for CMS uploader
-    const safeAuthor = (img.AuthorAttributionName || "unsplash")
-      .replace(/[^a-z0-9-_]+/gi, "-")
-      .toLowerCase();
-    const ext = (blob.type || "").includes("png") ? "png" : "jpg";
-    const file = new File([blob], `${safeAuthor}.${ext}`, {
-      type: blob.type || "image/jpeg",
-    });
-    const dt = new DataTransfer();
-    dt.items.add(file);
-
-    // 4️⃣ Locate CMS upload elements
-    const container = document.querySelector<HTMLElement>(
-      'dd.dev-module-field[data-module-fieldid="Image"]'
-    );
-    if (!container) {
-      alert("Image field container not found.");
-      return;
-    }
-
-    const fileInput =
-      container.querySelector<HTMLInputElement>(
-        'input[type="file"].imageupload.upload.uploadBtn'
-      ) || container.querySelector<HTMLInputElement>("input[type='file']");
-    const hiddenIdInput =
-      container.querySelector<HTMLInputElement>(".HashedImageID");
-    const altInput =
-      container.querySelector<HTMLInputElement>(".dev-alt-tag");
-    const uploadingUI =
-      container.querySelector<HTMLElement>(".uploading-file-this-file");
-    const previewDiv =
-      container.querySelector<HTMLElement>(".dragging-area");
-
-    if (!fileInput) {
-      alert("Upload input not found.");
-      return;
-    }
-
-    // 5️⃣ Trigger upload
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event("input", { bubbles: true }));
-    fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-
-    // 6️⃣ Alt + temporary preview
-    if (altInput) {
-      altInput.value = `Photo by ${img.AuthorAttributionName}`;
-      altInput.dispatchEvent(new Event("input", { bubbles: true }));
-      altInput.dispatchEvent(new Event("change", { bubbles: true }));
-    }
-
-    if (previewDiv) {
-      const tempUrl = URL.createObjectURL(blob);
-      previewDiv.style.backgroundImage = `url(${tempUrl})`;
-    }
-
-    // 7️⃣ Wait for upload & hidden ID (these keep your helpers in use!)
-    await waitForHiddenIdToChange(hiddenIdInput);
-    await waitForUploadToFinish(uploadingUI);
-console.log("[VENN] ✅ Hidden media ID:", hiddenIdInput?.value || "(not set in time)");
-
-// ✅ Close modal when done
-onClose?.();
-
-    // 8️⃣ Close the modal once successful
-    const closeBtn = document.querySelector(
-      ".close-modal, .modal-close, .btn-close, [data-dismiss='modal']"
-    ) as HTMLElement | null;
-    if (closeBtn) {
-      closeBtn.click();
-      console.log("[VENN] Closed modal after successful upload");
-    }
-  } catch (err) {
-    console.error(err);
-    alert("Failed to import image. Please try again.");
-  } finally {
-    btn.disabled = false;
-  }
-}}
-
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "#000",
-            color: "#fff",
-            border: "none",
-            padding: "10px 14px",
-            borderRadius: "4px",
-            fontSize: "13px",
-            fontWeight: 400,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-            cursor: "pointer",
-            opacity: hover ? 1 : 0,
-            transition: "opacity 0.25s ease",
-            pointerEvents: hover ? "auto" : "none",
-          }}
-        >
-          Add to Library
-        </button>
       </div>
 
       <p style={{ fontSize: 12, marginTop: 10 }}>
@@ -281,8 +286,6 @@ onClose?.();
     </div>
   );
 }
-
-
 
 
 const PRESETS = [
@@ -309,9 +312,10 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
 
   // Add state hooks at the top of your component
-const [imageType, setImageType] = useState<"photos" | "illustrations">("photos");
-const [relevance, setRelevance] = useState<"newest" | "oldest">("newest");
-const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | "portrait">("all");
+  const [imageType, setImageType] = useState<"photos" | "illustrations">("photos");
+  const [relevance, setRelevance] = useState<"newest" | "oldest">("newest");
+  const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | "portrait">("all");
+
   // -------------------------
   // Pagination / “View More”
   // -------------------------
@@ -320,7 +324,6 @@ const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | 
   // -------------------------
   // Basic search (your working code)
   // -------------------------
-
 
 
   const basicSearch = async (term?: string) => {
@@ -360,31 +363,29 @@ const [orientation, setOrientation] = useState<"all" | "square" | "landscape" | 
   };
   */
 
-const renderResults = () => (
-  <ul
-    style={{
-      listStyle: "none",
-      padding: 0,
-      marginTop: "1.5rem",
-      columnCount: 2, 
-      columnGap: "2rem",      
-    }}
-  >
-    {results.map((img, index) => (
-      <li
-        key={index}
-        style={{
-          breakInside: "avoid",    
-          marginBottom: "1rem",
-        }}
-      >
-        <ImageItem img={img} />
-      </li>
-    ))}
-  </ul>
-);
-
-
+  const renderResults = () => (
+    <ul
+      style={{
+        listStyle: "none",
+        padding: 0,
+        marginTop: "1.5rem",
+        columnCount: 2, 
+        columnGap: "2rem",      
+      }}
+    >
+      {results.map((img, index) => (
+        <li
+          key={index}
+          style={{
+            breakInside: "avoid",    
+            marginBottom: "1rem",
+          }}
+        >
+          <ImageItem img={img} />
+        </li>
+      ))}
+    </ul>
+  );
 
   
 
@@ -423,21 +424,21 @@ const renderResults = () => (
       </button>
 
     {modalOpen && (
-  <div
-    style={{
-      position: "fixed",
-      top: 0, left: 0,
-      width: "100vw", height: "100vh",
-      background: "rgba(0, 0, 0, 0.6)",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      zIndex: 1000,
-    }}
-  onClick={(e) => {
-    if (e.target === e.currentTarget) setModalOpen(false); // click outside content only
-  }}
-  >
+      <div
+        style={{
+          position: "fixed",
+          top: 0, left: 0,
+          width: "100vw", height: "100vh",
+          background: "rgba(0, 0, 0, 0.6)",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          zIndex: 1000,
+        }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) setModalOpen(false); // click outside content only
+      }}
+      >
     <div
       style={{
         background: '#fff',
@@ -450,11 +451,11 @@ const renderResults = () => (
         maxHeight: "90vh",
         overflowY: "auto",
         transition: 'background 0.3s ease, color 0.3s ease',
-      }}
-      onClick={stopBubble}
-      onMouseDown={stopBubble}
-      onPointerDown={stopBubble}
-    >
+        }}
+        onClick={stopBubble}
+        onMouseDown={stopBubble}
+        onPointerDown={stopBubble}
+      >
 
             {/* Header */}
             <div
@@ -731,7 +732,7 @@ const renderResults = () => (
 
                 </div>
               </>
-            )}
+            )} 
 
                 {results.map((img) => (
         <ImageItem
@@ -744,9 +745,7 @@ const renderResults = () => (
         </div>
       )}
     </>
-    
   );
-  
 }
 
 export default App;
