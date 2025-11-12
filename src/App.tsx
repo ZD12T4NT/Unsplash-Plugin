@@ -109,166 +109,166 @@ export function ImageItem({
         />
 
         {/* Button */}
-<button
-  type="button"
-  onClick={async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    (e as any).stopImmediatePropagation?.();
+          <button
+      type="button"
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        (e as any).stopImmediatePropagation?.();
 
-    const btn = e.currentTarget as HTMLButtonElement;
-    btn.disabled = true;
+        const btn = e.currentTarget as HTMLButtonElement;
+        btn.disabled = true;
 
-    try {
-      // 1️⃣ Register & get CDN URL from the gateway
-      const dlRes = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Venn-Client-Origin": getClientOrigin(),
-        },
-        body: JSON.stringify({ url: img.DownloadLocation }),
-      });
+        try {
+          // 1️⃣ Register & get CDN URL from the gateway
+          const dlRes = await fetch(`${VERCEL_API_BASE}/download-unsplash`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Venn-Client-Origin": getClientOrigin(),
+            },
+            body: JSON.stringify({ url: img.DownloadLocation }),
+          });
 
-      if (!dlRes.ok) {
-        const t = await dlRes.text().catch(() => "");
-        console.error("[VENN] download-unsplash failed:", dlRes.status, t);
-        alert("Could not fetch image via gateway.");
-        return;
-      }
+          if (!dlRes.ok) {
+            const t = await dlRes.text().catch(() => "");
+            console.error("[VENN] download-unsplash failed:", dlRes.status, t);
+            alert("Could not fetch image via gateway.");
+            return;
+          }
 
-      const dlJson = await dlRes.json().catch(() => ({}));
-      const cdnUrl =
-        dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
-      if (!cdnUrl) {
-        console.error("[VENN] download-unsplash returned no url:", dlJson);
-        alert("Gateway did not return an image URL.");
-        return;
-      }
+          const dlJson = await dlRes.json().catch(() => ({}));
+          const cdnUrl =
+            dlJson?.url || dlJson?.Url || dlJson?.data?.url || dlJson?.data?.Url;
+          if (!cdnUrl) {
+            console.error("[VENN] download-unsplash returned no url:", dlJson);
+            alert("Gateway did not return an image URL.");
+            return;
+          }
 
-      // 2️⃣ Fetch the image bytes via proxy
-      const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Venn-Client-Origin": getClientOrigin(),
-        },
-        body: JSON.stringify({ url: cdnUrl }),
-      });
+          // 2️⃣ Fetch the image bytes via proxy
+          const fileResp = await fetch(`${VERCEL_API_BASE}/unsplash-file`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "X-Venn-Client-Origin": getClientOrigin(),
+            },
+            body: JSON.stringify({ url: cdnUrl }),
+          });
 
-      if (!fileResp.ok) {
-        const t = await fileResp.text().catch(() => "");
-        console.error("[VENN] unsplash-file failed:", fileResp.status, t);
-        alert("Could not fetch image bytes.");
-        return;
-      }
+          if (!fileResp.ok) {
+            const t = await fileResp.text().catch(() => "");
+            console.error("[VENN] unsplash-file failed:", fileResp.status, t);
+            alert("Could not fetch image bytes.");
+            return;
+          }
 
-      const blob = await fileResp.blob();
+          const blob = await fileResp.blob();
 
-      // 3️⃣ Build a File for CMS uploader
-      const safeAuthor = (img.AuthorAttributionName || "unsplash")
-        .replace(/[^a-z0-9-_]+/gi, "-")
-        .toLowerCase();
-      const ext = (blob.type || "").includes("png") ? "png" : "jpg";
-      const file = new File([blob], `${safeAuthor}.${ext}`, {
-        type: blob.type || "image/jpeg",
-      });
-      const dt = new DataTransfer();
-      dt.items.add(file);
+          // 3️⃣ Build a File for CMS uploader
+          const safeAuthor = (img.AuthorAttributionName || "unsplash")
+            .replace(/[^a-z0-9-_]+/gi, "-")
+            .toLowerCase();
+          const ext = (blob.type || "").includes("png") ? "png" : "jpg";
+          const file = new File([blob], `${safeAuthor}.${ext}`, {
+            type: blob.type || "image/jpeg",
+          });
+          const dt = new DataTransfer();
+          dt.items.add(file);
 
-      // 4️⃣ Locate CMS upload elements
-      const container = document.querySelector<HTMLElement>(
-        'dd.dev-module-field[data-module-fieldid="Image"]'
-      );
-      if (!container) {
-        alert("Image field container not found.");
-        return;
-      }
+          // 4️⃣ Locate CMS upload elements
+          const container = document.querySelector<HTMLElement>(
+            'dd.dev-module-field[data-module-fieldid="Image"]'
+          );
+          if (!container) {
+            alert("Image field container not found.");
+            return;
+          }
 
-      const fileInput =
-        container.querySelector<HTMLInputElement>(
-          'input[type="file"].imageupload.upload.uploadBtn'
-        ) ||
-        container.querySelector<HTMLInputElement>("input[type='file']");
-      const hiddenIdInput =
-        container.querySelector<HTMLInputElement>(".HashedImageID");
-      const altInput =
-        container.querySelector<HTMLInputElement>(".dev-alt-tag");
-      const uploadingUI =
-        container.querySelector<HTMLElement>(".uploading-file-this-file");
-      const previewDiv =
-        container.querySelector<HTMLElement>(".dragging-area");
+          const fileInput =
+            container.querySelector<HTMLInputElement>(
+              'input[type="file"].imageupload.upload.uploadBtn'
+            ) ||
+            container.querySelector<HTMLInputElement>("input[type='file']");
+          const hiddenIdInput =
+            container.querySelector<HTMLInputElement>(".HashedImageID");
+          const altInput =
+            container.querySelector<HTMLInputElement>(".dev-alt-tag");
+          const uploadingUI =
+            container.querySelector<HTMLElement>(".uploading-file-this-file");
+          const previewDiv =
+            container.querySelector<HTMLElement>(".dragging-area");
 
-      if (!fileInput) {
-        alert("Upload input not found.");
-        return;
-      }
+          if (!fileInput) {
+            alert("Upload input not found.");
+            return;
+          }
 
-      // 5️⃣ Trigger upload
-      fileInput.files = dt.files;
-      fileInput.dispatchEvent(new Event("input", { bubbles: true }));
-      fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+          // 5️⃣ Trigger upload
+          fileInput.files = dt.files;
+          fileInput.dispatchEvent(new Event("input", { bubbles: true }));
+          fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 
-      // 6️⃣ Alt + temporary preview
-      if (altInput) {
-        altInput.value = `Photo by ${img.AuthorAttributionName}`;
-        altInput.dispatchEvent(new Event("input", { bubbles: true }));
-        altInput.dispatchEvent(new Event("change", { bubbles: true }));
-      }
+          // 6️⃣ Alt + temporary preview
+          if (altInput) {
+            altInput.value = `Photo by ${img.AuthorAttributionName}`;
+            altInput.dispatchEvent(new Event("input", { bubbles: true }));
+            altInput.dispatchEvent(new Event("change", { bubbles: true }));
+          }
 
-      if (previewDiv) {
-        const tempUrl = URL.createObjectURL(blob);
-        previewDiv.style.backgroundImage = `url(${tempUrl})`;
-      }
+          if (previewDiv) {
+            const tempUrl = URL.createObjectURL(blob);
+            previewDiv.style.backgroundImage = `url(${tempUrl})`;
+          }
 
-      // 7️⃣ Wait for upload & hidden ID
-      await waitForHiddenIdToChange(hiddenIdInput);
-      await waitForUploadToFinish(uploadingUI);
+          // 7️⃣ Wait for upload & hidden ID
+          await waitForHiddenIdToChange(hiddenIdInput);
+          await waitForUploadToFinish(uploadingUI);
 
-      console.log(
-        "[VENN] ✅ Hidden media ID:",
-        hiddenIdInput?.value || "(not set in time)"
-      );
+          console.log(
+            "[VENN] ✅ Hidden media ID:",
+            hiddenIdInput?.value || "(not set in time)"
+          );
 
-      // ✅ Close modal via prop
-      onClose?.();
+          // ✅ Close modal via prop
+          onClose?.();
 
-      // ✅ Fallback: click close button if the modal is outside React
-      const closeBtn = document.querySelector(
-        ".close-modal, .modal-close, .btn-close, [data-dismiss='modal']"
-      ) as HTMLElement | null;
-      if (closeBtn) {
-        closeBtn.click();
-        console.log("[VENN] Closed modal after successful upload");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to import image. Please try again.");
-    } finally {
-      btn.disabled = false;
-    }
-  }}
-  style={{
-    position: "absolute",
-    left: "50%",
-    top: "50%",
-    transform: "translate(-50%, -50%)",
-    background: "#000",
-    color: "#fff",
-    border: "none",
-    padding: "10px 14px",
-    borderRadius: "4px",
-    fontSize: "13px",
-    fontWeight: 400,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
-    cursor: "pointer",
-    opacity: hover ? 1 : 0,
-    transition: "opacity 0.25s ease",
-        pointerEvents: hover ? "auto" : "none",
-        }}
-      >
-        Add to Library
-      </button>
+          // ✅ Fallback: click close button if the modal is outside React
+          const closeBtn = document.querySelector(
+            ".close-modal, .modal-close, .btn-close, [data-dismiss='modal']"
+          ) as HTMLElement | null;
+          if (closeBtn) {
+            closeBtn.click();
+            console.log("[VENN] Closed modal after successful upload");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("Failed to import image. Please try again.");
+        } finally {
+          btn.disabled = false;
+        }
+      }}
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+        background: "#000",
+        color: "#fff",
+        border: "none",
+        padding: "10px 14px",
+        borderRadius: "4px",
+        fontSize: "13px",
+        fontWeight: 400,
+        boxShadow: "0 2px 8px rgba(0,0,0,0.35)",
+        cursor: "pointer",
+        opacity: hover ? 1 : 0,
+        transition: "opacity 0.25s ease",
+            pointerEvents: hover ? "auto" : "none",
+            }}
+          >
+            Add to Library
+          </button>
 
       </div>
 
@@ -372,7 +372,8 @@ export function App() {
         columnCount: 2, 
         columnGap: "2rem",      
       }}
-    >
+    >  
+    
       {results.map((img, index) => (
         <li
           key={index}
@@ -381,7 +382,11 @@ export function App() {
             marginBottom: "1rem",
           }}
         >
-          <ImageItem img={img} />
+          <ImageItem
+          key={img.DownloadLocation}
+          img={img}
+          onClose={() => setModalOpen(false)} // this closes the modal
+          />
         </li>
       ))}
     </ul>
@@ -734,13 +739,7 @@ export function App() {
               </>
             )} 
 
-                {results.map((img) => (
-        <ImageItem
-          key={img.DownloadLocation}
-          img={img}
-          onClose={() => setModalOpen(false)} // 🔥 this closes the modal
-        />
-      ))}
+              
           </div>
         </div>
       )}
